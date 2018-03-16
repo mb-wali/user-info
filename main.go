@@ -29,18 +29,12 @@ type App interface {
 	DeleteRequest(http.ResponseWriter, *http.Request)
 }
 
+// -------- START USER PREFERENCES --------
 // UserPreferencesRecord represents a user's preferences stored in the database
 type UserPreferencesRecord struct {
 	ID          string
 	Preferences string
 	UserID      string
-}
-
-// UserSessionRecord represents a user session stored in the database
-type UserSessionRecord struct {
-	ID      string
-	Session string
-	UserID  string
 }
 
 // convert makes sure that the JSON has the correct format. "wrap" tells convert
@@ -74,37 +68,6 @@ func convertPrefs(record *UserPreferencesRecord, wrap bool) (map[string]interfac
 	return values, nil
 }
 
-// convert makes sure that the JSON has the correct format. "wrap" tells convert
-// whether to wrap the object in a map with "session" as the key.
-func convertSessions(record *UserSessionRecord, wrap bool) (map[string]interface{}, error) {
-	var values map[string]interface{}
-
-	if record.Session != "" {
-		if err := json.Unmarshal([]byte(record.Session), &values); err != nil {
-			return nil, err
-		}
-	}
-
-	// We don't want the return value wrapped in a session object, so unwrap it
-	// if it is wrapped.
-	if !wrap {
-		if _, ok := values["session"]; ok {
-			return values["session"].(map[string]interface{}), nil
-		}
-		return values, nil
-	}
-
-	// We do want the return value wrapped in a session object, so wrap it if it
-	// isn't already.
-	if _, ok := values["session"]; !ok {
-		newmap := make(map[string]interface{})
-		newmap["session"] = values
-		return newmap, nil
-	}
-
-	return values, nil
-}
-
 type pDB interface {
 	isUser(username string) (bool, error)
 
@@ -116,25 +79,9 @@ type pDB interface {
 	deletePreferences(username string) error
 }
 
-type sDB interface {
-	isUser(username string) (bool, error)
-
-	// DB defines the interface for interacting with the user-sessions database.
-	hasSessions(username string) (bool, error)
-	getSessions(username string) ([]UserSessionRecord, error)
-	insertSession(username, session string) error
-	updateSession(username, session string) error
-	deleteSession(username string) error
-}
-
 // PrefsDB implements the DB interface for interacting with the user-preferences
 // database.
 type PrefsDB struct {
-	db *sql.DB
-}
-
-// SessionsDB handles interacting with the sessions database.
-type SessionsDB struct {
 	db *sql.DB
 }
 
@@ -145,14 +92,6 @@ func NewPrefsDB(db *sql.DB) *PrefsDB {
 	}
 }
 
-// NewSessionsDB returns a newly created *SessionsDB
-func NewSessionsDB(db *sql.DB) *SessionsDB {
-	return &SessionsDB{
-		db: db,
-	}
-}
-
-// -------- START USER PREFERENCES --------
 // isUser returns whether or not the user exists in the database preferences.
 func (p *PrefsDB) isUser(username string) (bool, error) {
 	return queries.IsUser(p.db, username)
@@ -244,26 +183,28 @@ func (p *PrefsDB) deletePreferences(username string) error {
 // UserPreferencesApp is an implementation of the App interface created to manage
 // user preferences.
 type UserPreferencesApp struct {
-	prefs pDB
+	prefs  pDB
+	router *mux.Router
 }
 
 // New returns a new *UserPreferencesApp
 func NewPrefsApp(db pDB, router *mux.Router) *UserPreferencesApp {
 	prefsApp := &UserPreferencesApp{
-		prefs: db,
+		prefs:  db,
+		router: router,
 	}
-	router.HandleFunc("/", prefsApp.Greeting).Methods("GET")
-	router.HandleFunc("/preferences/", prefsApp.Greeting).Methods("GET")
-	router.HandleFunc("/preferences/{username}", prefsApp.GetRequest).Methods("GET")
-	router.HandleFunc("/preferences/{username}", prefsApp.PutRequest).Methods("PUT")
-	router.HandleFunc("/preferences/{username}", prefsApp.PostRequest).Methods("POST")
-	router.HandleFunc("/preferences/{username}", prefsApp.DeleteRequest).Methods("DELETE")
+	prefsApp.router.HandleFunc("/", prefsApp.Greeting).Methods("GET")
+	prefsApp.router.HandleFunc("/preferences/", prefsApp.Greeting).Methods("GET")
+	prefsApp.router.HandleFunc("/preferences/{username}", prefsApp.GetRequest).Methods("GET")
+	prefsApp.router.HandleFunc("/preferences/{username}", prefsApp.PutRequest).Methods("PUT")
+	prefsApp.router.HandleFunc("/preferences/{username}", prefsApp.PostRequest).Methods("POST")
+	prefsApp.router.HandleFunc("/preferences/{username}", prefsApp.DeleteRequest).Methods("DELETE")
 	return prefsApp
 }
 
 // Greeting prints out a greeting to the writer from user-prefs.
 func (u *UserPreferencesApp) Greeting(writer http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(writer, "Hello from user-preferences. \n")
+	fmt.Fprintf(writer, "Hello from user-preferences.\n")
 }
 
 func (u *UserPreferencesApp) getUserPreferencesForRequest(username string, wrap bool) ([]byte, error) {
@@ -445,6 +386,68 @@ func (u *UserPreferencesApp) DeleteRequest(writer http.ResponseWriter, r *http.R
 // -------- END PREFERENCES DATA --------
 
 // -------- SESSIONS DATA --------
+
+// UserSessionRecord represents a user session stored in the database
+type UserSessionRecord struct {
+	ID      string
+	Session string
+	UserID  string
+}
+
+// convert makes sure that the JSON has the correct format. "wrap" tells convert
+// whether to wrap the object in a map with "session" as the key.
+func convertSessions(record *UserSessionRecord, wrap bool) (map[string]interface{}, error) {
+	var values map[string]interface{}
+
+	if record.Session != "" {
+		if err := json.Unmarshal([]byte(record.Session), &values); err != nil {
+			return nil, err
+		}
+	}
+
+	// We don't want the return value wrapped in a session object, so unwrap it
+	// if it is wrapped.
+	if !wrap {
+		if _, ok := values["session"]; ok {
+			return values["session"].(map[string]interface{}), nil
+		}
+		return values, nil
+	}
+
+	// We do want the return value wrapped in a session object, so wrap it if it
+	// isn't already.
+	if _, ok := values["session"]; !ok {
+		newmap := make(map[string]interface{})
+		newmap["session"] = values
+		return newmap, nil
+	}
+
+	return values, nil
+}
+
+type sDB interface {
+	isUser(username string) (bool, error)
+
+	// DB defines the interface for interacting with the user-sessions database.
+	hasSessions(username string) (bool, error)
+	getSessions(username string) ([]UserSessionRecord, error)
+	insertSession(username, session string) error
+	updateSession(username, session string) error
+	deleteSession(username string) error
+}
+
+// SessionsDB handles interacting with the sessions database.
+type SessionsDB struct {
+	db *sql.DB
+}
+
+// NewSessionsDB returns a newly created *SessionsDB
+func NewSessionsDB(db *sql.DB) *SessionsDB {
+	return &SessionsDB{
+		db: db,
+	}
+}
+
 // isUser returnes whether or not the user is present in the sessions database.
 func (s *SessionsDB) isUser(username string) (bool, error) {
 	return queries.IsUser(s.db, username)
@@ -546,11 +549,11 @@ func NewSessionsApp(db sDB, router *mux.Router) *UserSessionsApp {
 		sessions: db,
 		router:   router,
 	}
-	router.HandleFunc("/sessions/", sessionsApp.Greeting).Methods("GET")
-	router.HandleFunc("/sessions/{username}", sessionsApp.GetRequest).Methods("GET")
-	router.HandleFunc("/sessions/{username}", sessionsApp.PutRequest).Methods("PUT")
-	router.HandleFunc("/sessions/{username}", sessionsApp.PostRequest).Methods("POST")
-	router.HandleFunc("/sessions/{username}", sessionsApp.DeleteRequest).Methods("DELETE")
+	sessionsApp.router.HandleFunc("/sessions/", sessionsApp.Greeting).Methods("GET")
+	sessionsApp.router.HandleFunc("/sessions/{username}", sessionsApp.GetRequest).Methods("GET")
+	sessionsApp.router.HandleFunc("/sessions/{username}", sessionsApp.PutRequest).Methods("PUT")
+	sessionsApp.router.HandleFunc("/sessions/{username}", sessionsApp.PostRequest).Methods("POST")
+	sessionsApp.router.HandleFunc("/sessions/{username}", sessionsApp.DeleteRequest).Methods("DELETE")
 	return sessionsApp
 }
 
