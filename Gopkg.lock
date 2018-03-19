@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/DATA-DOG/go-sqlmock"
+  packages = ["."]
+  revision = "d76b18b42f285b792bf985118980ce9eacea9d10"
+  version = "v1.3.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/cyverse-de/configurate"
   packages = ["."]
@@ -153,6 +159,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "514a2b512f4a992c7771a56959809d9e993fd2c52251bdb84fd0dc36c6634e0e"
+  inputs-digest = "0b818b789b3ddbc9dfbed46057b4fa8353869ae3eef55cb726177c7e67b3b1f7"
   solver-name = "gps-cdcl"
   solver-version = 1
