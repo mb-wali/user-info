@@ -204,7 +204,7 @@ func NewPrefsApp(db pDB, router *mux.Router) *UserPreferencesApp {
 
 // Greeting prints out a greeting to the writer from user-prefs.
 func (u *UserPreferencesApp) Greeting(writer http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(writer, "Hello from user-preferences.\n")
+	fmt.Fprintf(writer, "Hello from user-info.\n")
 }
 
 func (u *UserPreferencesApp) getUserPreferencesForRequest(username string, wrap bool) ([]byte, error) {

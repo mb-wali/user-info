@@ -176,7 +176,7 @@ func TestPreferencesGreeting(t *testing.T) {
 		t.Error(err)
 	}
 
-	expectedBody := []byte("Hello from user-preferences.\n")
+	expectedBody := []byte("Hello from user-info.\n")
 	actualBody, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		t.Error(err)
