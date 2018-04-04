@@ -144,7 +144,7 @@ func (p *PrefsDB) getPreferences(username string) ([]UserPreferencesRecord, erro
 	return prefs, nil
 }
 
-// insertPreferences adds a new preferences to the database for the user.
+// insertPreferences adds new preferences to the database for the user.
 func (p *PrefsDB) insertPreferences(username, prefs string) error {
 	query := `INSERT INTO user_preferences (user_id, preferences)
                  VALUES ($1, $2)`
@@ -187,7 +187,7 @@ type UserPreferencesApp struct {
 	router *mux.Router
 }
 
-// New returns a new *UserPreferencesApp
+// NewPrefsApp returns a new *UserPreferencesApp
 func NewPrefsApp(db pDB, router *mux.Router) *UserPreferencesApp {
 	prefsApp := &UserPreferencesApp{
 		prefs:  db,
@@ -542,7 +542,7 @@ type UserSessionsApp struct {
 	router   *mux.Router
 }
 
-// New returns a new *UserSessionsApp
+// NewSessionsApp returns a new *UserSessionsApp
 func NewSessionsApp(db sDB, router *mux.Router) *UserSessionsApp {
 	sessionsApp := &UserSessionsApp{
 		sessions: db,
@@ -750,8 +750,8 @@ type seDB interface {
 	deleteSavedSearches(string) error
 }
 
-// SearchesDB implements the seDB interface to allow SavedSearches to store
-// information in a database.
+// SearchesDB implements the DB interface for interacting with the saved-searches
+// database.
 type SearchesDB struct {
 	db *sql.DB
 }
@@ -763,10 +763,12 @@ func NewSearchesDB(db *sql.DB) *SearchesDB {
 	}
 }
 
+// isUser returns whether or not the user exists in the saved searches database.
 func (se *SearchesDB) isUser(username string) (bool, error) {
 	return queries.IsUser(se.db, username)
 }
 
+// hasSavedSearches returns whether or not the given user has saved searches already.
 func (se *SearchesDB) hasSavedSearches(username string) (bool, error) {
 	var (
 		err    error
@@ -787,6 +789,8 @@ func (se *SearchesDB) hasSavedSearches(username string) (bool, error) {
 	return exists, nil
 }
 
+// getSavedSearches returns all of the saved searches associated with the
+// provided username.
 func (se *SearchesDB) getSavedSearches(username string) ([]string, error) {
 	var (
 		err    error
@@ -820,6 +824,7 @@ func (se *SearchesDB) getSavedSearches(username string) ([]string, error) {
 	return retval, nil
 }
 
+// insertSavedSearches adds new saved searches to the database for the user.
 func (se *SearchesDB) insertSavedSearches(username, searches string) error {
 	var (
 		err    error
@@ -836,6 +841,7 @@ func (se *SearchesDB) insertSavedSearches(username, searches string) error {
 	return err
 }
 
+// updateSavedSearches updates the saved searches in the database for the user.
 func (se *SearchesDB) updateSavedSearches(username, searches string) error {
 	var (
 		err    error
@@ -852,6 +858,7 @@ func (se *SearchesDB) updateSavedSearches(username, searches string) error {
 	return err
 }
 
+// deleteSavedSearches removes the user's saved sessions from the database.
 func (se *SearchesDB) deleteSavedSearches(username string) error {
 	var (
 		err    error
@@ -868,13 +875,14 @@ func (se *SearchesDB) deleteSavedSearches(username string) error {
 	return err
 }
 
-// SavedSearches contains the application state for saved-searches
+// SavedSearchesApp is an implementation of the App interface created to manage
+// saved-searches
 type SavedSearchesApp struct {
 	searches seDB
 	router   *mux.Router
 }
 
-// New returns a new *SavedSearches
+// NewSearchesApp returns a new *SavedSearchesApp
 func NewSearchesApp(db seDB, router *mux.Router) *SavedSearchesApp {
 	searchesApp := &SavedSearchesApp{
 		searches: db,
@@ -889,7 +897,7 @@ func NewSearchesApp(db seDB, router *mux.Router) *SavedSearchesApp {
 	return searchesApp
 }
 
-// Greeting prints out a greeting to the writer from user-prefs.
+// Greeting prints out a greeting to the writer from saved-searches.
 func (s *SavedSearchesApp) Greeting(writer http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(writer, "Hello from saved-searches.\n")
 }
