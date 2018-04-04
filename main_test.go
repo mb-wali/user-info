@@ -172,12 +172,13 @@ func TestPreferencesGreeting(t *testing.T) {
 	server := httptest.NewServer(n.router)
 	defer server.Close()
 
-	res, err := http.Get(server.URL)
+	url := fmt.Sprintf("%s/%s", server.URL, "preferences/")
+	res, err := http.Get(url)
 	if err != nil {
 		t.Error(err)
 	}
 
-	expectedBody := []byte("Hello from user-info.\n")
+	expectedBody := []byte("Hello from user-preferences.\n")
 	actualBody, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		t.Error(err)
@@ -1888,5 +1889,40 @@ func TestDeleteUnstored(t *testing.T) {
 	}
 	if actualStatusSearches != expectedStatus {
 		t.Errorf("DELETE status code was %d instead of %d", actualStatusSearches, expectedStatus)
+	}
+}
+
+func TestRootGreeting(t *testing.T) {
+	router := makeRouter()
+	router.Handle("/debug/vars", http.DefaultServeMux)
+
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "/")
+	res, err := http.Get(url)
+	if err != nil {
+		t.Log(url)
+		t.Log(res)
+		t.Error(err)
+	}
+
+	expectedBody := []byte("Hello from user-info.\n")
+	actualBody, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Log(url)
+		t.Error(err)
+	}
+	res.Body.Close()
+
+	if !bytes.Equal(actualBody, expectedBody) {
+		t.Errorf("Message was '%s' but should have been '%s'", actualBody, expectedBody)
+	}
+
+	expectedStatus := http.StatusOK
+	actualStatus := res.StatusCode
+
+	if actualStatus != expectedStatus {
+		t.Errorf("Status code was %d but should have been %d", actualStatus, expectedStatus)
 	}
 }

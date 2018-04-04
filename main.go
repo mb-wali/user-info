@@ -193,7 +193,6 @@ func NewPrefsApp(db pDB, router *mux.Router) *UserPreferencesApp {
 		prefs:  db,
 		router: router,
 	}
-	prefsApp.router.HandleFunc("/", prefsApp.Greeting).Methods("GET")
 	prefsApp.router.HandleFunc("/preferences/", prefsApp.Greeting).Methods("GET")
 	prefsApp.router.HandleFunc("/preferences/{username}", prefsApp.GetRequest).Methods("GET")
 	prefsApp.router.HandleFunc("/preferences/{username}", prefsApp.PutRequest).Methods("PUT")
@@ -204,7 +203,7 @@ func NewPrefsApp(db pDB, router *mux.Router) *UserPreferencesApp {
 
 // Greeting prints out a greeting to the writer from user-prefs.
 func (u *UserPreferencesApp) Greeting(writer http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(writer, "Hello from user-info.\n")
+	fmt.Fprintf(writer, "Hello from user-preferences.\n")
 }
 
 func (u *UserPreferencesApp) getUserPreferencesForRequest(username string, wrap bool) ([]byte, error) {
@@ -1099,6 +1098,16 @@ func AppVersion() {
 	}
 }
 
+func makeRouter() *mux.Router {
+	router := mux.NewRouter()
+	router.Handle("/debug/vars", http.DefaultServeMux)
+	router.HandleFunc("/", func(writer http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(writer, "Hello from user-info.\n")
+	}).Methods("GET")
+
+	return router
+}
+
 func main() {
 	var (
 		showVersion = flag.Bool("version", false, "Print the version information")
@@ -1142,8 +1151,7 @@ func main() {
 	}
 	log.Info("Successfully pinged the database")
 
-	router := mux.NewRouter()
-	router.Handle("/preferences/debug/vars", http.DefaultServeMux)
+	router := makeRouter()
 
 	log.Info("Listening on port ", *port)
 	prefsDB := NewPrefsDB(db)
