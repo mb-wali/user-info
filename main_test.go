@@ -146,7 +146,7 @@ func TestConvertNormalPreferences(t *testing.T) {
 func TestHandleNonUser(t *testing.T) {
 	var (
 		expectedMsg    = "{\"user\":\"test-user\"}\n"
-		expectedStatus = http.StatusBadRequest
+		expectedStatus = http.StatusNotFound
 	)
 
 	recorder := httptest.NewRecorder()
@@ -166,7 +166,7 @@ func TestHandleNonUser(t *testing.T) {
 func TestPreferencesGreeting(t *testing.T) {
 	mock := NewMockDB()
 	router := mux.NewRouter()
-	router.Handle("/preferences/debug/vars", http.DefaultServeMux)
+	router.Handle("/debug/vars", http.DefaultServeMux)
 	n := NewPrefsApp(mock, router)
 
 	server := httptest.NewServer(n.router)
@@ -732,6 +732,40 @@ func TestConvertNormalSession(t *testing.T) {
 	}
 	if actual["foo"].(string) != "bar" {
 		t.Fail()
+	}
+}
+
+func TestSessionsGreeting(t *testing.T) {
+	mock := NewMockDB()
+	router := mux.NewRouter()
+	router.Handle("/debug/vars", http.DefaultServeMux)
+	n := NewSessionsApp(mock, router)
+
+	server := httptest.NewServer(n.router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "sessions/")
+	res, err := http.Get(url)
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedBody := []byte("Hello from user-sessions.\n")
+	actualBody, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Error(err)
+	}
+	res.Body.Close()
+
+	if !bytes.Equal(actualBody, expectedBody) {
+		t.Errorf("Message was '%s' but should have been '%s'", actualBody, expectedBody)
+	}
+
+	expectedStatus := http.StatusOK
+	actualStatus := res.StatusCode
+
+	if actualStatus != expectedStatus {
+		t.Errorf("Status code was %d but should have been %d", actualStatus, expectedStatus)
 	}
 }
 

@@ -254,7 +254,7 @@ func (u *UserPreferencesApp) GetRequest(writer http.ResponseWriter, r *http.Requ
 
 	log.WithFields(log.Fields{
 		"service": "preferences",
-	}).Info("Getting user preferences for %s", username)
+	}).Info("Getting user preferences for ", username)
 	if userExists, err = u.prefs.isUser(username); err != nil {
 		badRequest(writer, fmt.Sprintf("Error checking for username %s: %s", username, err))
 		return
@@ -559,7 +559,7 @@ func NewSessionsApp(db sDB, router *mux.Router) *UserSessionsApp {
 
 // Greeting prints out a greeting to the writer from user-sessions.
 func (u *UserSessionsApp) Greeting(writer http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(writer, "Hello from user-sessions.")
+	fmt.Fprintf(writer, "Hello from user-sessions.\n")
 }
 
 func (u *UserSessionsApp) getUserSessionForRequest(username string, wrap bool) ([]byte, error) {
@@ -608,7 +608,7 @@ func (u *UserSessionsApp) GetRequest(writer http.ResponseWriter, r *http.Request
 
 	log.WithFields(log.Fields{
 		"service": "sessions",
-	}).Info("Getting user session for %s", username)
+	}).Info("Getting user session for ", username)
 	if userExists, err = u.sessions.isUser(username); err != nil {
 		badRequest(writer, fmt.Sprintf("Error checking for username %s: %s", username, err))
 		return
@@ -1049,6 +1049,11 @@ func errored(writer http.ResponseWriter, msg string) {
 	log.Error(msg)
 }
 
+func notFound(writer http.ResponseWriter, msg string) {
+	http.Error(writer, msg, http.StatusNotFound)
+	log.Error(msg)
+}
+
 func handleNonUser(writer http.ResponseWriter, username string) {
 	var (
 		retval []byte
@@ -1063,7 +1068,7 @@ func handleNonUser(writer http.ResponseWriter, username string) {
 		return
 	}
 
-	badRequest(writer, string(retval))
+	notFound(writer, string(retval))
 
 	return
 }
@@ -1140,11 +1145,10 @@ func main() {
 	router := mux.NewRouter()
 	router.Handle("/preferences/debug/vars", http.DefaultServeMux)
 
-	log.Info("Listening on port %s", *port)
+	log.Info("Listening on port ", *port)
 	prefsDB := NewPrefsDB(db)
 	prefsApp := NewPrefsApp(prefsDB, router)
 
-	log.Info("Listening on port %s", *port)
 	sessionsDB := NewSessionsDB(db)
 	sessionsApp := NewSessionsApp(sessionsDB, router)
 
