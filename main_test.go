@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -145,7 +146,7 @@ func TestConvertNormalPreferences(t *testing.T) {
 func TestHandleNonUser(t *testing.T) {
 	var (
 		expectedMsg    = "{\"user\":\"test-user\"}\n"
-		expectedStatus = http.StatusBadRequest
+		expectedStatus = http.StatusNotFound
 	)
 
 	recorder := httptest.NewRecorder()
@@ -165,18 +166,19 @@ func TestHandleNonUser(t *testing.T) {
 func TestPreferencesGreeting(t *testing.T) {
 	mock := NewMockDB()
 	router := mux.NewRouter()
-	router.Handle("/preferences/debug/vars", http.DefaultServeMux)
+	router.Handle("/debug/vars", http.DefaultServeMux)
 	n := NewPrefsApp(mock, router)
 
 	server := httptest.NewServer(n.router)
 	defer server.Close()
 
-	res, err := http.Get(server.URL)
+	url := fmt.Sprintf("%s/%s", server.URL, "preferences/")
+	res, err := http.Get(url)
 	if err != nil {
 		t.Error(err)
 	}
 
-	expectedBody := []byte("Hello from user-info.\n")
+	expectedBody := []byte("Hello from user-preferences.\n")
 	actualBody, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		t.Error(err)
@@ -734,6 +736,40 @@ func TestConvertNormalSession(t *testing.T) {
 	}
 }
 
+func TestSessionsGreeting(t *testing.T) {
+	mock := NewMockDB()
+	router := mux.NewRouter()
+	router.Handle("/debug/vars", http.DefaultServeMux)
+	n := NewSessionsApp(mock, router)
+
+	server := httptest.NewServer(n.router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "sessions/")
+	res, err := http.Get(url)
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedBody := []byte("Hello from user-sessions.\n")
+	actualBody, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Error(err)
+	}
+	res.Body.Close()
+
+	if !bytes.Equal(actualBody, expectedBody) {
+		t.Errorf("Message was '%s' but should have been '%s'", actualBody, expectedBody)
+	}
+
+	expectedStatus := http.StatusOK
+	actualStatus := res.StatusCode
+
+	if actualStatus != expectedStatus {
+		t.Errorf("Status code was %d but should have been %d", actualStatus, expectedStatus)
+	}
+}
+
 func TestGetUserSessionForRequest(t *testing.T) {
 	mock := NewMockDB()
 	router := mux.NewRouter()
@@ -1161,6 +1197,555 @@ func TestDeleteSession(t *testing.T) {
 
 // -------- End Sessions --------
 
+// -------- Start Searches --------
+func (m *MockDB) hasSavedSearches(username string) (bool, error) {
+	stored, ok := m.storage[username]
+	if !ok {
+		return false, nil
+	}
+	if stored == nil {
+		return false, nil
+	}
+	searches, ok := m.storage[username]["saved_searches"].(string)
+	if !ok {
+		return false, nil
+	}
+	return len(searches) > 0, nil
+
+}
+
+func (m *MockDB) getSavedSearches(username string) ([]string, error) {
+	return []string{m.storage[username]["saved_searches"].(string)}, nil
+}
+
+func (m *MockDB) deleteSavedSearches(username string) error {
+	delete(m.storage, username)
+	return nil
+}
+
+func (m *MockDB) insertSavedSearches(username, savedSearches string) error {
+	if _, ok := m.storage[username]["saved_searches"]; !ok {
+		m.storage[username] = make(map[string]interface{})
+	}
+	m.storage[username]["saved_searches"] = savedSearches
+	return nil
+}
+
+func (m *MockDB) updateSavedSearches(username, savedSearches string) error {
+	return m.insertSavedSearches(username, savedSearches)
+}
+
+func TestSearchesGreeting(t *testing.T) {
+	mock := NewMockDB()
+	router := mux.NewRouter()
+	router.Handle("/debug/vars", http.DefaultServeMux)
+	n := NewSearchesApp(mock, router)
+
+	server := httptest.NewServer(n.router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "searches/")
+	res, err := http.Get(url)
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedBody := []byte("Hello from saved-searches.\n")
+	actualBody, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Error(err)
+	}
+	res.Body.Close()
+
+	if !bytes.Equal(actualBody, expectedBody) {
+		t.Errorf("Message was '%s' but should have been '%s'", actualBody, expectedBody)
+	}
+
+	expectedStatus := http.StatusOK
+	actualStatus := res.StatusCode
+
+	if actualStatus != expectedStatus {
+		t.Errorf("Status code was %d but should have been %d", actualStatus, expectedStatus)
+	}
+}
+
+func TestGetSavedSearchesForRequest(t *testing.T) {
+	username := "test_user@test-domain.org"
+	expectedBody := `{"search":"fake"}`
+
+	mock := NewMockDB()
+	mock.users[username] = true
+	if err := mock.insertSavedSearches(username, expectedBody); err != nil {
+		t.Error(err)
+	}
+
+	router := mux.NewRouter()
+	n := NewSearchesApp(mock, router)
+	server := httptest.NewServer(n.router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "searches/"+username)
+	res, err := http.Get(url)
+	if err != nil {
+		t.Error(err)
+	}
+
+	bodyBytes, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		t.Error(err)
+	}
+
+	actualBody := string(bodyBytes)
+
+	expectedStatus := http.StatusOK
+	actualStatus := res.StatusCode
+
+	if actualBody != expectedBody {
+		t.Errorf("Body of the response was '%s' instead of '%s'", actualBody, expectedBody)
+	}
+
+	if actualStatus != expectedStatus {
+		t.Errorf("Status of the response was %d instead of %d", actualStatus, expectedStatus)
+	}
+}
+
+func TestPutInsertSavedSearchesForRequest(t *testing.T) {
+	username := "test_user@test-domain.org"
+	expectedBody := `{"search":"fake"}`
+
+	mock := NewMockDB()
+	mock.users[username] = true
+
+	router := mux.NewRouter()
+	n := NewSearchesApp(mock, router)
+	server := httptest.NewServer(n.router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "searches/"+username)
+	httpClient := &http.Client{}
+	req, err := http.NewRequest(http.MethodPut, url, strings.NewReader(expectedBody))
+	if err != nil {
+		t.Error(err)
+	}
+	res, err := httpClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	bodyBytes, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		t.Error(err)
+	}
+
+	var parsed map[string]map[string]string
+	err = json.Unmarshal(bodyBytes, &parsed)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var expectedParsed map[string]string
+	err = json.Unmarshal([]byte(expectedBody), &expectedParsed)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if _, ok := parsed["saved_searches"]; !ok {
+		t.Error("Parsed response did not have a top-level 'saved_searches' key")
+	}
+
+	if !reflect.DeepEqual(parsed["saved_searches"], expectedParsed) {
+		t.Errorf("Put returned '%#v' as the saved search instead of '%#v'", parsed["saved_searches"], expectedBody)
+	}
+}
+
+func TestPutUpdateSavedSearchesForRequest(t *testing.T) {
+	username := "test_user@test-domain.org"
+	expectedBody := `{"search":"fake"}`
+
+	mock := NewMockDB()
+	mock.users[username] = true
+	if err := mock.insertSavedSearches(username, expectedBody); err != nil {
+		t.Error(err)
+	}
+
+	router := mux.NewRouter()
+	n := NewSearchesApp(mock, router)
+	server := httptest.NewServer(n.router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "searches/"+username)
+	httpClient := &http.Client{}
+	req, err := http.NewRequest(http.MethodPut, url, strings.NewReader(expectedBody))
+	if err != nil {
+		t.Error(err)
+	}
+	res, err := httpClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	bodyBytes, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		t.Error(err)
+	}
+
+	var parsed map[string]map[string]string
+	err = json.Unmarshal(bodyBytes, &parsed)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var expectedParsed map[string]string
+	err = json.Unmarshal([]byte(expectedBody), &expectedParsed)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if _, ok := parsed["saved_searches"]; !ok {
+		t.Error("Parsed response did not have a top-level 'saved_searches' key")
+	}
+
+	if !reflect.DeepEqual(parsed["saved_searches"], expectedParsed) {
+		t.Errorf("Put returned '%#v' as the saved search instead of '%#v'", parsed["saved_searches"], expectedBody)
+	}
+}
+
+func TestPostInsertSavedSearchesForRequest(t *testing.T) {
+	username := "test_user@test-domain.org"
+	expectedBody := `{"search":"fake"}`
+
+	mock := NewMockDB()
+	mock.users[username] = true
+
+	router := mux.NewRouter()
+	n := NewSearchesApp(mock, router)
+	server := httptest.NewServer(n.router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "searches/"+username)
+	res, err := http.Post(url, "", strings.NewReader(expectedBody))
+	if err != nil {
+		t.Error(err)
+	}
+
+	bodyBytes, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		t.Error(err)
+	}
+
+	var parsed map[string]map[string]string
+	err = json.Unmarshal(bodyBytes, &parsed)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var expectedParsed map[string]string
+	err = json.Unmarshal([]byte(expectedBody), &expectedParsed)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if _, ok := parsed["saved_searches"]; !ok {
+		t.Error("Parsed response did not have a top-level 'saved_searches' key")
+	}
+
+	if !reflect.DeepEqual(parsed["saved_searches"], expectedParsed) {
+		t.Errorf("Post returned '%#v' as the saved search instead of '%#v'", parsed["saved_searches"], expectedBody)
+	}
+}
+
+func TestPostUpdateSavedSearchesForRequest(t *testing.T) {
+	username := "test_user@test-domain.org"
+	expectedBody := `{"search":"fake"}`
+
+	mock := NewMockDB()
+	mock.users[username] = true
+	if err := mock.insertSavedSearches(username, expectedBody); err != nil {
+		t.Error(err)
+	}
+
+	router := mux.NewRouter()
+	n := NewSearchesApp(mock, router)
+	server := httptest.NewServer(n.router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "searches/"+username)
+	res, err := http.Post(url, "", strings.NewReader(expectedBody))
+	if err != nil {
+		t.Error(err)
+	}
+
+	bodyBytes, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		t.Error(err)
+	}
+
+	var parsed map[string]map[string]string
+	err = json.Unmarshal(bodyBytes, &parsed)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var expectedParsed map[string]string
+	err = json.Unmarshal([]byte(expectedBody), &expectedParsed)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if _, ok := parsed["saved_searches"]; !ok {
+		t.Error("Parsed response did not have a top-level 'saved_searches' key")
+	}
+
+	if !reflect.DeepEqual(parsed["saved_searches"], expectedParsed) {
+		t.Errorf("Post returned '%#v' as the saved search instead of '%#v'", parsed["saved_searches"], expectedBody)
+	}
+}
+
+func TestDeleteSavedSearchesForRequest(t *testing.T) {
+	username := "test_user@test-domain.org"
+	expectedBody := `{"search":"fake"}`
+
+	mock := NewMockDB()
+	mock.users[username] = true
+	if err := mock.insertSavedSearches(username, expectedBody); err != nil {
+		t.Error(err)
+	}
+
+	router := mux.NewRouter()
+	n := NewSearchesApp(mock, router)
+	server := httptest.NewServer(n.router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "searches/"+username)
+	httpClient := &http.Client{}
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	res, err := httpClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	bodyBytes, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(bodyBytes) > 0 {
+		t.Errorf("Delete returned a body when it should not have: %s", string(bodyBytes))
+	}
+
+	expectedStatus := http.StatusOK
+	actualStatus := res.StatusCode
+
+	if actualStatus != expectedStatus {
+		t.Errorf("StatusCode was %d instead of %d", actualStatus, expectedStatus)
+	}
+}
+
+func TestNewSearchesDB(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error occurred creating the mock db: %s", err)
+	}
+	defer db.Close()
+
+	prefs := NewSearchesDB(db)
+	if prefs == nil {
+		t.Error("NewSearchesDB() returned nil")
+	}
+
+	if prefs.db != db {
+		t.Error("dbs did not match")
+	}
+}
+
+func TestSavedSearchesIsUser(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error creating the mock db: %s", err)
+	}
+	defer db.Close()
+
+	p := NewSearchesDB(db)
+	if p == nil {
+		t.Error("NewSearchesDB returned nil")
+	}
+
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM \\( SELECT DISTINCT id FROM users").
+		WithArgs("test-user").
+		WillReturnRows(sqlmock.NewRows([]string{"check_user"}).AddRow(1))
+
+	present, err := p.isUser("test-user")
+	if err != nil {
+		t.Errorf("error calling isUser(): %s", err)
+	}
+
+	if !present {
+		t.Error("test-user was not found")
+	}
+}
+
+func TestHasSavedSearches(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error creating the mock db: %s", err)
+	}
+	defer db.Close()
+
+	p := NewSearchesDB(db)
+	if p == nil {
+		t.Error("NewSearchesDB returned nil")
+	}
+
+	mock.ExpectQuery("SELECT EXISTS\\( SELECT 1 FROM user_saved_searches s").
+		WithArgs("test-user").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+	exists, err := p.hasSavedSearches("test-user")
+	if err != nil {
+		t.Errorf("error from hasSavedSearches(): %s", err)
+	}
+
+	if !exists {
+		t.Error("hasSavedSearches() returned false")
+	}
+
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectations were not met: %s", err)
+	}
+}
+
+func TestGetSavedSearches(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error creating the mock db: %s", err)
+	}
+	defer db.Close()
+
+	p := NewSearchesDB(db)
+	if p == nil {
+		t.Error("NewSearchesDB returned nil")
+	}
+
+	mock.ExpectQuery("SELECT s.saved_searches saved_searches FROM user_saved_searches s,").
+		WithArgs("test-user").
+		WillReturnRows(sqlmock.NewRows([]string{"saved_searches"}).AddRow("{}"))
+
+	retval, err := p.getSavedSearches("test-user")
+	if err != nil {
+		t.Errorf("error from getSavedSearches(): %s", err)
+	}
+
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectations were not met: %s", err)
+	}
+
+	if len(retval) != 1 {
+		t.Errorf("length of retval was not 1: %d", len(retval))
+	}
+
+	if retval[0] != "{}" {
+		t.Errorf("retval was %s instead of {}", retval)
+	}
+}
+
+func TestInsertSavedSearches(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error creating the mock db: %s", err)
+	}
+	defer db.Close()
+
+	p := NewSearchesDB(db)
+	if p == nil {
+		t.Error("NewSearchesDB returned nil")
+	}
+
+	mock.ExpectQuery("SELECT id FROM users WHERE username =").
+		WithArgs("test-user").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("1"))
+
+	mock.ExpectExec("INSERT INTO user_saved_searches \\(user_id").
+		WithArgs("1", "{}").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	if err := p.insertSavedSearches("test-user", "{}"); err != nil {
+		t.Errorf("error inserting saved searches: %s", err)
+	}
+
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectations were not met: %s", err)
+	}
+}
+
+func TestUpdateSavedSearches(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error creating the mock db: %s", err)
+	}
+	defer db.Close()
+
+	p := NewSearchesDB(db)
+	if p == nil {
+		t.Error("NewSearchesDB returned nil")
+	}
+
+	mock.ExpectQuery("SELECT id FROM users WHERE username =").
+		WithArgs("test-user").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("1"))
+
+	mock.ExpectExec("UPDATE ONLY user_saved_searches SET saved_searches =").
+		WithArgs("1", "{}").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	if err := p.updateSavedSearches("test-user", "{}"); err != nil {
+		t.Errorf("error updating saved searches: %s", err)
+	}
+
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectations were not met: %s", err)
+	}
+}
+
+func TestDeleteSavedSearches(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error creating the mock db: %s", err)
+	}
+	defer db.Close()
+
+	p := NewSearchesDB(db)
+	if p == nil {
+		t.Error("NewSearchesDB returned nil")
+	}
+
+	mock.ExpectQuery("SELECT id FROM users WHERE username =").
+		WithArgs("test-user").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("1"))
+
+	mock.ExpectExec("DELETE FROM ONLY user_saved_searches WHERE user_id").
+		WithArgs("1").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	if err := p.deleteSavedSearches("test-user"); err != nil {
+		t.Errorf("error deleting saved searches: %s", err)
+	}
+
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectations were not met: %s", err)
+	}
+}
+
+// -------- End Searches --------
+
 func TestFixAddrNoPrefix(t *testing.T) {
 	expected := ":70000"
 	actual := fixAddr("70000")
@@ -1223,15 +1808,19 @@ func TestDeleteUnstored(t *testing.T) {
 	mock.users[username] = true
 	router := mux.NewRouter()
 	np := NewPrefsApp(mock, router)
-	ns := NewSessionsApp(mock, router)
+	ns1 := NewSessionsApp(mock, router)
+	ns2 := NewSearchesApp(mock, router)
 
 	serverPrefs := httptest.NewServer(np.router)
-	serverSessions := httptest.NewServer(ns.router)
+	serverSessions := httptest.NewServer(ns1.router)
+	serverSearches := httptest.NewServer(ns2.router)
 	defer serverPrefs.Close()
 	defer serverSessions.Close()
+	defer serverSearches.Close()
 
 	urlPrefs := fmt.Sprintf("%s/%s", serverPrefs.URL, "preferences/"+username)
 	urlSessions := fmt.Sprintf("%s/%s", serverSessions.URL, "sessions/"+username)
+	urlSearches := fmt.Sprintf("%s/%s", serverSearches.URL, "searches/"+username)
 	httpClient := &http.Client{}
 	reqPrefs, errPrefs := http.NewRequest(http.MethodDelete, urlPrefs, nil)
 	if errPrefs != nil {
@@ -1241,6 +1830,10 @@ func TestDeleteUnstored(t *testing.T) {
 	if errSessions != nil {
 		t.Error(errSessions)
 	}
+	reqSearches, errSearches := http.NewRequest(http.MethodDelete, urlSearches, nil)
+	if errSearches != nil {
+		t.Error(errSearches)
+	}
 
 	resPrefs, errPrefs := httpClient.Do(reqPrefs)
 	if errPrefs != nil {
@@ -1249,6 +1842,10 @@ func TestDeleteUnstored(t *testing.T) {
 	resSessions, errSessions := httpClient.Do(reqSessions)
 	if errSessions != nil {
 		t.Error(errSessions)
+	}
+	resSearches, errSearches := httpClient.Do(reqSearches)
+	if errSearches != nil {
+		t.Error(errSearches)
 	}
 
 	bodyPrefs, errPrefs := ioutil.ReadAll(resPrefs.Body)
@@ -1263,21 +1860,69 @@ func TestDeleteUnstored(t *testing.T) {
 	}
 	resSessions.Body.Close()
 
+	bodySearches, errSearches := ioutil.ReadAll(resSearches.Body)
+	if errSearches != nil {
+		t.Error(errSearches)
+	}
+	resSearches.Body.Close()
+
 	if len(bodyPrefs) > 0 {
 		t.Errorf("DELETE returned a body: %s", bodyPrefs)
 	}
 	if len(bodySessions) > 0 {
 		t.Errorf("DELETE returned a body: %s", bodySessions)
 	}
+	if len(bodySearches) > 0 {
+		t.Errorf("DELETE returned a body: %s", bodySearches)
+	}
 
 	expectedStatus := http.StatusOK
 	actualStatusPrefs := resPrefs.StatusCode
 	actualStatusSessions := resSessions.StatusCode
+	actualStatusSearches := resSearches.StatusCode
 
 	if actualStatusPrefs != expectedStatus {
 		t.Errorf("DELETE status code was %d instead of %d", actualStatusPrefs, expectedStatus)
 	}
 	if actualStatusSessions != expectedStatus {
 		t.Errorf("DELETE status code was %d instead of %d", actualStatusSessions, expectedStatus)
+	}
+	if actualStatusSearches != expectedStatus {
+		t.Errorf("DELETE status code was %d instead of %d", actualStatusSearches, expectedStatus)
+	}
+}
+
+func TestRootGreeting(t *testing.T) {
+	router := makeRouter()
+	router.Handle("/debug/vars", http.DefaultServeMux)
+
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	url := fmt.Sprintf("%s/%s", server.URL, "/")
+	res, err := http.Get(url)
+	if err != nil {
+		t.Log(url)
+		t.Log(res)
+		t.Error(err)
+	}
+
+	expectedBody := []byte("Hello from user-info.\n")
+	actualBody, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Log(url)
+		t.Error(err)
+	}
+	res.Body.Close()
+
+	if !bytes.Equal(actualBody, expectedBody) {
+		t.Errorf("Message was '%s' but should have been '%s'", actualBody, expectedBody)
+	}
+
+	expectedStatus := http.StatusOK
+	actualStatus := res.StatusCode
+
+	if actualStatus != expectedStatus {
+		t.Errorf("Status code was %d but should have been %d", actualStatus, expectedStatus)
 	}
 }
