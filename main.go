@@ -1,104 +1,17 @@
 package main
 
 import (
-	"encoding/json"
 	_ "expvar"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/cyverse-de/configurate"
 	"github.com/cyverse-de/dbutil"
-	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
-
-// App defines the interface for a user-info application
-type App interface {
-	Greeting(http.ResponseWriter, *http.Request)
-	GetRequest(http.ResponseWriter, *http.Request)
-	PutRequest(http.ResponseWriter, *http.Request)
-	PostRequest(http.ResponseWriter, *http.Request)
-	DeleteRequest(http.ResponseWriter, *http.Request)
-}
-
-// -------- START SEARCHES --------
-
-//-------- END SEARCHES DATA --------
-
-func badRequest(writer http.ResponseWriter, msg string) {
-	http.Error(writer, msg, http.StatusBadRequest)
-	log.Error(msg)
-}
-
-func errored(writer http.ResponseWriter, msg string) {
-	http.Error(writer, msg, http.StatusInternalServerError)
-	log.Error(msg)
-}
-
-func notFound(writer http.ResponseWriter, msg string) {
-	http.Error(writer, msg, http.StatusNotFound)
-	log.Error(msg)
-}
-
-func handleNonUser(writer http.ResponseWriter, username string) {
-	var (
-		retval []byte
-		err    error
-	)
-
-	retval, err = json.Marshal(map[string]string{
-		"user": username,
-	})
-	if err != nil {
-		errored(writer, fmt.Sprintf("Error generating json for non-user %s", err))
-		return
-	}
-
-	notFound(writer, string(retval))
-
-	return
-}
-
-func fixAddr(addr string) string {
-	if !strings.HasPrefix(addr, ":") {
-		return fmt.Sprintf(":%s", addr)
-	}
-	return addr
-}
-
-var (
-	gitref  string
-	appver  string
-	builtby string
-)
-
-// AppVersion prints the version information to stdout
-func AppVersion() {
-	if appver != "" {
-		fmt.Printf("App-Version: %s\n", appver)
-	}
-	if gitref != "" {
-		fmt.Printf("Git-Ref: %s\n", gitref)
-	}
-	if builtby != "" {
-		fmt.Printf("Built-By: %s\n", builtby)
-	}
-}
-
-func makeRouter() *mux.Router {
-	router := mux.NewRouter()
-	router.Handle("/debug/vars", http.DefaultServeMux)
-	router.HandleFunc("/", func(writer http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(writer, "Hello from user-info.\n")
-	}).Methods("GET")
-
-	return router
-}
 
 func main() {
 	var (
