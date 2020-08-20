@@ -126,16 +126,21 @@ func (p *PrefsDB) getPreferences(username string) ([]UserPreferencesRecord, erro
 	return prefs, nil
 }
 
-// insertPreferences adds new preferences to the database for the user.
-func (p *PrefsDB) insertPreferences(username, prefs string) error {
-	query := `INSERT INTO user_preferences (user_id, preferences)
-                 VALUES ($1, $2)`
+func (p *PrefsDB) mutation(query, username string, args ...interface{}) error {
 	userID, err := queries.UserID(p.db, username)
 	if err != nil {
 		return err
 	}
-	_, err = p.db.Exec(query, userID, prefs)
+	allargs := append([]interface{}{userID}, args...)
+	_, err = p.db.Exec(query, allargs...)
 	return err
+}
+
+// insertPreferences adds new preferences to the database for the user.
+func (p *PrefsDB) insertPreferences(username, prefs string) error {
+	query := `INSERT INTO user_preferences (user_id, preferences)
+                 VALUES ($1, $2)`
+	return p.mutation(query, username, prefs)
 }
 
 // updatePreferences updates the preferences in the database for the user.
@@ -143,23 +148,13 @@ func (p *PrefsDB) updatePreferences(username, prefs string) error {
 	query := `UPDATE ONLY user_preferences
                     SET preferences = $2
                   WHERE user_id = $1`
-	userID, err := queries.UserID(p.db, username)
-	if err != nil {
-		return err
-	}
-	_, err = p.db.Exec(query, userID, prefs)
-	return err
+	return p.mutation(query, username, prefs)
 }
 
 // deletePreferences deletes the user's preferences from the database.
 func (p *PrefsDB) deletePreferences(username string) error {
 	query := `DELETE FROM ONLY user_preferences WHERE user_id = $1`
-	userID, err := queries.UserID(p.db, username)
-	if err != nil {
-		return err
-	}
-	_, err = p.db.Exec(query, userID)
-	return err
+	return p.mutation(query, username)
 }
 
 // UserPreferencesApp is an implementation of the App interface created to manage
