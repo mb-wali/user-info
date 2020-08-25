@@ -97,3 +97,51 @@ func (b *BagsAPI) AddBag(username, contents string) (string, error) {
 
 	return bagID, nil
 }
+
+// UpdateBag updates a specific bag with new contents.
+func (b *BagsAPI) UpdateBag(username, bagID, contents string) error {
+	query := `UPDATE ONLY bags SET contents = $1 WHERE id = $2 and user_id = $3`
+
+	userID, err := queries.UserID(b.db, username)
+	if err != nil {
+		return err
+	}
+
+	if _, err = b.db.Exec(query, contents, bagID, userID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteBag deletes the specified bag for the user.
+func (b *BagsAPI) DeleteBag(username, bagID string) error {
+	query := `DELETE FROM ONLY bags WHERE id = $1 and user_id = $2`
+
+	userID, err := queries.UserID(b.db, username)
+	if err != nil {
+		return err
+	}
+
+	if _, err = b.db.Exec(query, bagID, userID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteAllBags deletes all of the bags for the specified user.
+func (b *BagsAPI) DeleteAllBags(username string) error {
+	query := `DELETE FROM ONLY bags WHERE user_id = $2`
+
+	userID, err := queries.UserID(b.db, username)
+	if err != nil {
+		return err
+	}
+
+	if _, err = b.db.Exec(query, userID); err != nil {
+		return err
+	}
+
+	return nil
+}
