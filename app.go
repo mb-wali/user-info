@@ -19,10 +19,6 @@ type App interface {
 	DeleteRequest(http.ResponseWriter, *http.Request)
 }
 
-// -------- START SEARCHES --------
-
-//-------- END SEARCHES DATA --------
-
 func badRequest(writer http.ResponseWriter, msg string) {
 	http.Error(writer, msg, http.StatusBadRequest)
 	log.Error(msg)
