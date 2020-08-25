@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/cyverse-de/queries"
@@ -27,6 +28,7 @@ func NewBagsApp(db *sql.DB, router *mux.Router) *BagsApp {
 	bagsApp.router.HandleFunc("/bags/", bagsApp.Greeting).Methods(http.MethodGet)
 	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.GetBags).Methods(http.MethodGet)
 	bagsApp.router.HandleFunc("/bags/{username}/{bagID}", bagsApp.GetBag).Methods(http.MethodGet)
+	bagsApp.router.HandleFunc("/bags/{username", bagsApp.AddBag).Methods(http.MethodPut)
 	return bagsApp
 }
 
@@ -119,4 +121,56 @@ func (b *BagsApp) GetBag(writer http.ResponseWriter, request *http.Request) {
 
 	writer.Header().Set("Content-Type", "application/json")
 	writer.Write(jsonBytes)
+}
+
+// AddBag adds an additional bag to the list for the user.
+func (b *BagsApp) AddBag(writer http.ResponseWriter, request *http.Request) {
+	var (
+		username, bagID string
+		bag             BagRecord
+		err             error
+		ok, userExists  bool
+		body            []byte
+		retval          []byte
+		vars            = mux.Vars(request)
+	)
+
+	if username, ok = vars["username"]; !ok {
+		badRequest(writer, "missing username in the URL")
+		return
+	}
+
+	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
+		badRequest(writer, fmt.Sprintf("error checking for bags %s: %s", username, err))
+		return
+	}
+
+	if !userExists {
+		badRequest(writer, fmt.Sprintf("user %s does not exist", username))
+		return
+	}
+
+	if body, err = ioutil.ReadAll(request.Body); err != nil {
+		errored(writer, fmt.Sprintf("error reading body: %s", err))
+		return
+	}
+
+	if err = json.Unmarshal(body, &bag); err != nil {
+		errored(writer, fmt.Sprintf("failed to JSON decode body: %s", err))
+		return
+	}
+
+	if bagID, err = b.api.AddBag(username, string(body)); err != nil {
+		errored(writer, fmt.Sprintf("failed to add bag for %s: %s", username, err))
+		return
+	}
+
+	if retval, err = json.Marshal(map[string]string{"id": bagID}); err != nil {
+		errored(writer, fmt.Sprintf("failed to JSON encode response body: %s", err))
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Write(retval)
+
 }
