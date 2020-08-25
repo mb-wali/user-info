@@ -68,8 +68,11 @@ func main() {
 	searchesDB := NewSearchesDB(db)
 	searchesApp := NewSearchesApp(searchesDB, router)
 
+	bagsApp := NewBagsApp(db, router)
+
 	log.Debug(prefsApp)
 	log.Debug(sessionsApp)
 	log.Debug(searchesApp)
+	log.Debug(bagsApp)
 	log.Fatal(http.ListenAndServe(fixAddr(*port), router))
 }
