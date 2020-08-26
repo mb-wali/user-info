@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -41,30 +42,40 @@ func (b *BagsApp) Greeting(writer http.ResponseWriter, request *http.Request) {
 	fmt.Fprintf(writer, "Hello from the bags handler")
 }
 
-// GetBags returns a listing of the bags for the user.
-func (b *BagsApp) GetBags(writer http.ResponseWriter, request *http.Request) {
+func (b *BagsApp) getUser(vars map[string]string) (string, error) {
 	var (
-		username   string
-		bags       []BagRecord
-		err        error
-		ok         bool
-		userExists bool
-		vars       = mux.Vars(request)
+		username       string
+		err            error
+		ok, userExists bool
 	)
-
 	if username, ok = vars["username"]; !ok {
-		badRequest(writer, "Missing username in the URL")
-		return
+		return "", errors.New("missing username in the URL")
 	}
 
+	username = AddUsernameSuffix(username)
+
 	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
-		badRequest(writer, fmt.Sprintf("error checking for bags %s: %s", username, err))
-		return
+		return "", fmt.Errorf("error checking for bags %s: %s", username, err)
 	}
 
 	if !userExists {
-		http.Error(writer, fmt.Sprintf("user %s does not exist", username), http.StatusBadRequest)
-		return
+		return "", fmt.Errorf("user %s does not exist", username)
+	}
+
+	return username, nil
+}
+
+// GetBags returns a listing of the bags for the user.
+func (b *BagsApp) GetBags(writer http.ResponseWriter, request *http.Request) {
+	var (
+		username string
+		bags     []BagRecord
+		err      error
+		vars     = mux.Vars(request)
+	)
+
+	if username, err = b.getUser(vars); err != nil {
+		badRequest(writer, err.Error())
 	}
 
 	if bags, err = b.api.GetBags(username); err != nil {
@@ -88,27 +99,16 @@ func (b *BagsApp) GetBag(writer http.ResponseWriter, request *http.Request) {
 		username, bagID string
 		bag             BagRecord
 		err             error
-		ok, userExists  bool
+		ok              bool
 		vars            = mux.Vars(request)
 	)
 
-	if username, ok = vars["username"]; !ok {
-		badRequest(writer, "missing username in the URL")
-		return
+	if username, err = b.getUser(vars); err != nil {
+		badRequest(writer, err.Error())
 	}
 
 	if bagID, ok = vars["bagID"]; !ok {
 		badRequest(writer, "missing bagID in the URL")
-		return
-	}
-
-	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
-		badRequest(writer, fmt.Sprintf("error checking for bags %s: %s", username, err))
-		return
-	}
-
-	if !userExists {
-		http.Error(writer, fmt.Sprintf("user %s does not exist", username), http.StatusBadRequest)
 		return
 	}
 
@@ -133,25 +133,13 @@ func (b *BagsApp) AddBag(writer http.ResponseWriter, request *http.Request) {
 		username, bagID string
 		bag             BagRecord
 		err             error
-		ok, userExists  bool
 		body            []byte
 		retval          []byte
 		vars            = mux.Vars(request)
 	)
 
-	if username, ok = vars["username"]; !ok {
-		badRequest(writer, "missing username in the URL")
-		return
-	}
-
-	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
-		badRequest(writer, fmt.Sprintf("error checking for bags %s: %s", username, err))
-		return
-	}
-
-	if !userExists {
-		badRequest(writer, fmt.Sprintf("user %s does not exist", username))
-		return
+	if username, err = b.getUser(vars); err != nil {
+		badRequest(writer, err.Error())
 	}
 
 	if body, err = ioutil.ReadAll(request.Body); err != nil {
@@ -184,28 +172,17 @@ func (b *BagsApp) UpdateBag(writer http.ResponseWriter, request *http.Request) {
 		username, bagID string
 		bag             BagRecord
 		err             error
-		ok, userExists  bool
+		ok              bool
 		body            []byte
 		vars            = mux.Vars(request)
 	)
 
-	if username, ok = vars["username"]; !ok {
-		badRequest(writer, "missing username in the URL")
-		return
+	if username, err = b.getUser(vars); err != nil {
+		badRequest(writer, err.Error())
 	}
 
 	if bagID, ok = vars["bagID"]; !ok {
 		badRequest(writer, "missing bagID in the URL")
-		return
-	}
-
-	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
-		badRequest(writer, fmt.Sprintf("error checking for bags %s: %s", username, err))
-		return
-	}
-
-	if !userExists {
-		badRequest(writer, fmt.Sprintf("user %s does not exist", username))
 		return
 	}
 
@@ -230,27 +207,16 @@ func (b *BagsApp) DeleteBag(writer http.ResponseWriter, request *http.Request) {
 	var (
 		username, bagID string
 		err             error
-		ok, userExists  bool
+		ok              bool
 		vars            = mux.Vars(request)
 	)
 
-	if username, ok = vars["username"]; !ok {
-		badRequest(writer, "missing username in the URL")
-		return
+	if username, err = b.getUser(vars); err != nil {
+		badRequest(writer, err.Error())
 	}
 
 	if bagID, ok = vars["bagID"]; !ok {
 		badRequest(writer, "missing bagID in the URL")
-		return
-	}
-
-	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
-		badRequest(writer, fmt.Sprintf("error checking for bags %s: %s", username, err))
-		return
-	}
-
-	if !userExists {
-		badRequest(writer, fmt.Sprintf("user %s does not exist", username))
 		return
 	}
 
@@ -263,25 +229,13 @@ func (b *BagsApp) DeleteBag(writer http.ResponseWriter, request *http.Request) {
 // DeleteAllBags deletes all bags for a user
 func (b *BagsApp) DeleteAllBags(writer http.ResponseWriter, request *http.Request) {
 	var (
-		username       string
-		err            error
-		ok, userExists bool
-		vars           = mux.Vars(request)
+		username string
+		err      error
+		vars     = mux.Vars(request)
 	)
 
-	if username, ok = vars["username"]; !ok {
-		badRequest(writer, "missing username in the URL")
-		return
-	}
-
-	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
-		badRequest(writer, fmt.Sprintf("error checking for bags %s: %s", username, err))
-		return
-	}
-
-	if !userExists {
-		badRequest(writer, fmt.Sprintf("user %s does not exist", username))
-		return
+	if username, err = b.getUser(vars); err != nil {
+		badRequest(writer, err.Error())
 	}
 
 	if err = b.api.DeleteAllBags(username); err != nil {
@@ -293,26 +247,14 @@ func (b *BagsApp) DeleteAllBags(writer http.ResponseWriter, request *http.Reques
 // HasBags returns true if the user has at least a single bag in the database.
 func (b *BagsApp) HasBags(writer http.ResponseWriter, request *http.Request) {
 	var (
-		username                string
-		err                     error
-		ok, userExists, hasBags bool
-		retval                  []byte
-		vars                    = mux.Vars(request)
+		username string
+		err      error
+		hasBags  bool
+		vars     = mux.Vars(request)
 	)
 
-	if username, ok = vars["username"]; !ok {
-		badRequest(writer, "missing username in the URL")
-		return
-	}
-
-	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
-		badRequest(writer, fmt.Sprintf("error checking for bags %s: %s", username, err))
-		return
-	}
-
-	if !userExists {
-		badRequest(writer, fmt.Sprintf("user %s does not exist", username))
-		return
+	if username, err = b.getUser(vars); err != nil {
+		badRequest(writer, err.Error())
 	}
 
 	if hasBags, err = b.api.HasBags(username); err != nil {
@@ -320,11 +262,9 @@ func (b *BagsApp) HasBags(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	if retval, err = json.Marshal(map[string]bool{"hasBags": hasBags}); err != nil {
-		errored(writer, fmt.Sprintf("error JSON encoding response body: %s", err))
-		return
+	if !hasBags {
+		writer.WriteHeader(http.StatusNotFound)
+	} else {
+		writer.WriteHeader(http.StatusOK)
 	}
-
-	writer.Header().Set("Content-Type", "application/json")
-	writer.Write(retval)
 }

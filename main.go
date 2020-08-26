@@ -3,8 +3,10 @@ package main
 import (
 	_ "expvar"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/cyverse-de/configurate"
 	"github.com/cyverse-de/dbutil"
@@ -12,6 +14,21 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
+
+// IplantSuffix is what is appended to a username in the database.
+const IplantSuffix = "@iplantcollaborative.org"
+
+// AddUsernameSuffix appends the @iplantcollaborative.org string to the
+// username if it's not already there.
+func AddUsernameSuffix(username string) string {
+	var retval string
+	if !strings.HasSuffix(username, IplantSuffix) {
+		retval = fmt.Sprintf("%s%s", username, IplantSuffix)
+	} else {
+		retval = username
+	}
+	return retval
+}
 
 func main() {
 	var (
@@ -58,7 +75,6 @@ func main() {
 
 	router := makeRouter()
 
-	log.Info("Listening on port ", *port)
 	prefsDB := NewPrefsDB(db)
 	prefsApp := NewPrefsApp(prefsDB, router)
 
@@ -74,5 +90,7 @@ func main() {
 	log.Debug(sessionsApp)
 	log.Debug(searchesApp)
 	log.Debug(bagsApp)
+
+	log.Info("Listening on port ", *port)
 	log.Fatal(http.ListenAndServe(fixAddr(*port), router))
 }
