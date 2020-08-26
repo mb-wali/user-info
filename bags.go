@@ -26,6 +26,7 @@ func NewBagsApp(db *sql.DB, router *mux.Router) *BagsApp {
 		router: router,
 	}
 	bagsApp.router.HandleFunc("/bags/", bagsApp.Greeting).Methods(http.MethodGet)
+	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.HasBags).Methods(http.MethodHead)
 	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.GetBags).Methods(http.MethodGet)
 	bagsApp.router.HandleFunc("/bags/{username}/{bagID}", bagsApp.GetBag).Methods(http.MethodGet)
 	bagsApp.router.HandleFunc("/bags/{username", bagsApp.AddBag).Methods(http.MethodPut)
@@ -287,4 +288,43 @@ func (b *BagsApp) DeleteAllBags(writer http.ResponseWriter, request *http.Reques
 		errored(writer, fmt.Sprintf("error deleting bag for user %s: %s", username, err))
 		return
 	}
+}
+
+// HasBags returns true if the user has at least a single bag in the database.
+func (b *BagsApp) HasBags(writer http.ResponseWriter, request *http.Request) {
+	var (
+		username                string
+		err                     error
+		ok, userExists, hasBags bool
+		retval                  []byte
+		vars                    = mux.Vars(request)
+	)
+
+	if username, ok = vars["username"]; !ok {
+		badRequest(writer, "missing username in the URL")
+		return
+	}
+
+	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
+		badRequest(writer, fmt.Sprintf("error checking for bags %s: %s", username, err))
+		return
+	}
+
+	if !userExists {
+		badRequest(writer, fmt.Sprintf("user %s does not exist", username))
+		return
+	}
+
+	if hasBags, err = b.api.HasBags(username); err != nil {
+		errored(writer, fmt.Sprintf("error looking for bags for %s: %s", username, err))
+		return
+	}
+
+	if retval, err = json.Marshal(map[string]bool{"hasBags": hasBags}); err != nil {
+		errored(writer, fmt.Sprintf("error JSON encoding response body: %s", err))
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Write(retval)
 }
