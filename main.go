@@ -3,10 +3,8 @@ package main
 import (
 	_ "expvar"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/cyverse-de/configurate"
 	"github.com/cyverse-de/dbutil"
@@ -17,18 +15,6 @@ import (
 
 // IplantSuffix is what is appended to a username in the database.
 const IplantSuffix = "@iplantcollaborative.org"
-
-// AddUsernameSuffix appends the @iplantcollaborative.org string to the
-// username if it's not already there.
-func AddUsernameSuffix(username string) string {
-	var retval string
-	if !strings.HasSuffix(username, IplantSuffix) {
-		retval = fmt.Sprintf("%s%s", username, IplantSuffix)
-	} else {
-		retval = username
-	}
-	return retval
-}
 
 func main() {
 	var (
@@ -73,6 +59,11 @@ func main() {
 	}
 	log.Info("Successfully pinged the database")
 
+	userDomain := cfg.GetString("users.domain")
+	if userDomain == "" {
+		userDomain = IplantSuffix
+	}
+
 	router := makeRouter()
 
 	prefsDB := NewPrefsDB(db)
@@ -84,7 +75,7 @@ func main() {
 	searchesDB := NewSearchesDB(db)
 	searchesApp := NewSearchesApp(searchesDB, router)
 
-	bagsApp := NewBagsApp(db, router)
+	bagsApp := NewBagsApp(db, router, userDomain)
 
 	log.Debug(prefsApp)
 	log.Debug(sessionsApp)

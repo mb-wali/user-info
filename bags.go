@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/cyverse-de/queries"
 	"github.com/gorilla/mux"
@@ -14,17 +15,19 @@ import (
 
 // BagsApp contains the routing and request handling code for bags.
 type BagsApp struct {
-	api    *BagsAPI
-	router *mux.Router
+	api        *BagsAPI
+	router     *mux.Router
+	userDomain string
 }
 
 // NewBagsApp creates a new BagsApp instance.
-func NewBagsApp(db *sql.DB, router *mux.Router) *BagsApp {
+func NewBagsApp(db *sql.DB, router *mux.Router, userDomain string) *BagsApp {
 	bagsApp := &BagsApp{
 		api: &BagsAPI{
 			db: db,
 		},
-		router: router,
+		router:     router,
+		userDomain: userDomain,
 	}
 	bagsApp.router.HandleFunc("/bags/", bagsApp.Greeting).Methods(http.MethodGet)
 	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.HasBags).Methods(http.MethodHead)
@@ -35,6 +38,18 @@ func NewBagsApp(db *sql.DB, router *mux.Router) *BagsApp {
 	bagsApp.router.HandleFunc("/bags/{username}/{bagID}", bagsApp.DeleteBag).Methods(http.MethodDelete)
 	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.DeleteAllBags).Methods(http.MethodDelete)
 	return bagsApp
+}
+
+// AddUsernameSuffix appends the @iplantcollaborative.org string to the
+// username if it's not already there.
+func (b *BagsApp) AddUsernameSuffix(username string) string {
+	var retval string
+	if !strings.HasSuffix(username, IplantSuffix) {
+		retval = fmt.Sprintf("%s%s", username, IplantSuffix)
+	} else {
+		retval = username
+	}
+	return retval
 }
 
 // Greeting prints out a greeting for the bags endpoints.
@@ -52,7 +67,7 @@ func (b *BagsApp) getUser(vars map[string]string) (string, error) {
 		return "", errors.New("missing username in the URL")
 	}
 
-	username = AddUsernameSuffix(username)
+	username = b.AddUsernameSuffix(username)
 
 	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
 		return "", fmt.Errorf("error checking for bags %s: %s", username, err)
