@@ -163,7 +163,7 @@ func (b *BagsApp) AddBag(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	if err = json.Unmarshal(body, &bag); err != nil {
-		errored(writer, fmt.Sprintf("failed to JSON decode body: %s", err))
+		badRequest(writer, fmt.Sprintf("failed to JSON decode body: %s", err))
 		return
 	}
 
