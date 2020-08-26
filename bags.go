@@ -57,27 +57,27 @@ func (b *BagsApp) Greeting(writer http.ResponseWriter, request *http.Request) {
 	fmt.Fprintf(writer, "Hello from the bags handler")
 }
 
-func (b *BagsApp) getUser(vars map[string]string) (string, error) {
+func (b *BagsApp) getUser(vars map[string]string) (string, int, error) {
 	var (
 		username       string
 		err            error
 		ok, userExists bool
 	)
 	if username, ok = vars["username"]; !ok {
-		return "", errors.New("missing username in the URL")
+		return "", http.StatusBadRequest, errors.New("missing username in the URL")
 	}
 
 	username = b.AddUsernameSuffix(username)
 
 	if userExists, err = queries.IsUser(b.api.db, username); err != nil {
-		return "", fmt.Errorf("error checking for bags %s: %s", username, err)
+		return "", http.StatusInternalServerError, fmt.Errorf("error checking for bags %s: %s", username, err)
 	}
 
 	if !userExists {
-		return "", fmt.Errorf("user %s does not exist", username)
+		return "", http.StatusNotFound, fmt.Errorf("user %s does not exist", username)
 	}
 
-	return username, nil
+	return username, http.StatusOK, nil
 }
 
 // GetBags returns a listing of the bags for the user.
@@ -86,11 +86,12 @@ func (b *BagsApp) GetBags(writer http.ResponseWriter, request *http.Request) {
 		username string
 		bags     []BagRecord
 		err      error
+		status   int
 		vars     = mux.Vars(request)
 	)
 
-	if username, err = b.getUser(vars); err != nil {
-		badRequest(writer, err.Error())
+	if username, status, err = b.getUser(vars); err != nil {
+		http.Error(writer, err.Error(), status)
 	}
 
 	if bags, err = b.api.GetBags(username); err != nil {
@@ -115,11 +116,12 @@ func (b *BagsApp) GetBag(writer http.ResponseWriter, request *http.Request) {
 		bag             BagRecord
 		err             error
 		ok              bool
+		status          int
 		vars            = mux.Vars(request)
 	)
 
-	if username, err = b.getUser(vars); err != nil {
-		badRequest(writer, err.Error())
+	if username, status, err = b.getUser(vars); err != nil {
+		http.Error(writer, err.Error(), status)
 	}
 
 	if bagID, ok = vars["bagID"]; !ok {
@@ -160,11 +162,12 @@ func (b *BagsApp) AddBag(writer http.ResponseWriter, request *http.Request) {
 		err             error
 		body            []byte
 		retval          []byte
+		status          int
 		vars            = mux.Vars(request)
 	)
 
-	if username, err = b.getUser(vars); err != nil {
-		badRequest(writer, err.Error())
+	if username, status, err = b.getUser(vars); err != nil {
+		http.Error(writer, err.Error(), status)
 	}
 
 	if body, err = ioutil.ReadAll(request.Body); err != nil {
@@ -199,11 +202,12 @@ func (b *BagsApp) UpdateBag(writer http.ResponseWriter, request *http.Request) {
 		err             error
 		ok              bool
 		body            []byte
+		status          int
 		vars            = mux.Vars(request)
 	)
 
-	if username, err = b.getUser(vars); err != nil {
-		badRequest(writer, err.Error())
+	if username, status, err = b.getUser(vars); err != nil {
+		http.Error(writer, err.Error(), status)
 	}
 
 	if bagID, ok = vars["bagID"]; !ok {
@@ -233,11 +237,12 @@ func (b *BagsApp) DeleteBag(writer http.ResponseWriter, request *http.Request) {
 		username, bagID string
 		err             error
 		ok              bool
+		status          int
 		vars            = mux.Vars(request)
 	)
 
-	if username, err = b.getUser(vars); err != nil {
-		badRequest(writer, err.Error())
+	if username, status, err = b.getUser(vars); err != nil {
+		http.Error(writer, err.Error(), status)
 	}
 
 	if bagID, ok = vars["bagID"]; !ok {
@@ -256,11 +261,12 @@ func (b *BagsApp) DeleteAllBags(writer http.ResponseWriter, request *http.Reques
 	var (
 		username string
 		err      error
+		status   int
 		vars     = mux.Vars(request)
 	)
 
-	if username, err = b.getUser(vars); err != nil {
-		badRequest(writer, err.Error())
+	if username, status, err = b.getUser(vars); err != nil {
+		http.Error(writer, err.Error(), status)
 	}
 
 	if err = b.api.DeleteAllBags(username); err != nil {
@@ -275,11 +281,12 @@ func (b *BagsApp) HasBags(writer http.ResponseWriter, request *http.Request) {
 		username string
 		err      error
 		hasBags  bool
+		status   int
 		vars     = mux.Vars(request)
 	)
 
-	if username, err = b.getUser(vars); err != nil {
-		badRequest(writer, err.Error())
+	if username, status, err = b.getUser(vars); err != nil {
+		http.Error(writer, err.Error(), status)
 	}
 
 	if hasBags, err = b.api.HasBags(username); err != nil {
