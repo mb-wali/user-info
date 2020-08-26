@@ -30,7 +30,7 @@ func NewBagsApp(db *sql.DB, router *mux.Router) *BagsApp {
 	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.HasBags).Methods(http.MethodHead)
 	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.GetBags).Methods(http.MethodGet)
 	bagsApp.router.HandleFunc("/bags/{username}/{bagID}", bagsApp.GetBag).Methods(http.MethodGet)
-	bagsApp.router.HandleFunc("/bags/{username", bagsApp.AddBag).Methods(http.MethodPut)
+	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.AddBag).Methods(http.MethodPut)
 	bagsApp.router.HandleFunc("/bags/{username}/{bagID}", bagsApp.UpdateBag).Methods(http.MethodPost)
 	bagsApp.router.HandleFunc("/bags/{username}/{bagID}", bagsApp.DeleteBag).Methods(http.MethodDelete)
 	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.DeleteAllBags).Methods(http.MethodDelete)

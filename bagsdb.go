@@ -13,7 +13,9 @@ type BagsAPI struct {
 
 // BagRecord represents a bag as stored in the database.
 type BagRecord struct {
-	ID, Contents, UserID string
+	ID       string `json:"id"`
+	Contents string `json:"contents"`
+	UserID   string `json:"user_id"`
 }
 
 // HasBags returns true if the user has bags and false otherwise.
@@ -45,10 +47,10 @@ func (b *BagsAPI) GetBags(username string) ([]BagRecord, error) {
 		return nil, err
 	}
 
-	var bagList []BagRecord
+	bagList := []BagRecord{}
 	for rows.Next() {
 		record := BagRecord{}
-		err = rows.Scan(&record.ID, record.Contents, record.UserID)
+		err = rows.Scan(&record.ID, &record.Contents, &record.UserID)
 		if err != nil {
 			return nil, err
 		}
@@ -70,7 +72,7 @@ func (b *BagsAPI) GetBag(username, bagID string) (BagRecord, error) {
 				FROM bags b,
 					 users u
 			   WHERE b.user_id = u.id
-				 AND b.username = $2
+				 AND u.username = $2
 				 AND b.id = $1`
 	var record BagRecord
 	err := b.db.QueryRow(query, bagID, username).Scan(&record.ID, &record.Contents, &record.UserID)
@@ -91,7 +93,7 @@ func (b *BagsAPI) AddBag(username, contents string) (string, error) {
 	}
 
 	var bagID string
-	if err = b.db.QueryRow(query, userID).Scan(&bagID); err != nil {
+	if err = b.db.QueryRow(query, contents, userID).Scan(&bagID); err != nil {
 		return "", err
 	}
 
@@ -132,7 +134,7 @@ func (b *BagsAPI) DeleteBag(username, bagID string) error {
 
 // DeleteAllBags deletes all of the bags for the specified user.
 func (b *BagsAPI) DeleteAllBags(username string) error {
-	query := `DELETE FROM ONLY bags WHERE user_id = $2`
+	query := `DELETE FROM ONLY bags WHERE user_id = $1`
 
 	userID, err := queries.UserID(b.db, username)
 	if err != nil {
