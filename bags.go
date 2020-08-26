@@ -127,6 +127,16 @@ func (b *BagsApp) GetBag(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	if ok, err = b.api.HasBag(username, bagID); err != nil {
+		badRequest(writer, fmt.Sprintf("error checking database for bag %s for %s: %s", bagID, username, err))
+		return
+	}
+
+	if !ok {
+		http.Error(writer, fmt.Sprintf("bag %s not found for user %s", bagID, username), http.StatusNotFound)
+		return
+	}
+
 	if bag, err = b.api.GetBag(username, bagID); err != nil {
 		http.Error(writer, fmt.Sprintf("error getting bags for %s: %s", username, err), http.StatusInternalServerError)
 		return

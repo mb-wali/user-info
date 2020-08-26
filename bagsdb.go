@@ -32,6 +32,21 @@ func (b *BagsAPI) HasBags(username string) (bool, error) {
 	return count > 0, nil
 }
 
+// HasBag returns true if the specified bag exists in the database.
+func (b *BagsAPI) HasBag(username, bagID string) (bool, error) {
+	query := `SELECT count(*)
+				FROM bags b,
+					 users u
+			   WHERE b.user_id = u.id
+				 AND u.username = $1
+				 AND b.id = $2`
+	var count int64
+	if err := b.db.QueryRow(query, username, bagID).Scan(&count); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // GetBags returns all of the bags for the provided user.
 func (b *BagsAPI) GetBags(username string) ([]BagRecord, error) {
 	query := `SELECT b.id,
