@@ -13,9 +13,9 @@ type BagsAPI struct {
 
 // BagRecord represents a bag as stored in the database.
 type BagRecord struct {
-	ID       string `json:"id"`
-	Contents string `json:"contents"`
-	UserID   string `json:"user_id"`
+	ID       string      `json:"id"`
+	Contents BagContents `json:"contents"`
+	UserID   string      `json:"user_id"`
 }
 
 // HasBags returns true if the user has bags and false otherwise.
