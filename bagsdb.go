@@ -2,6 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
 
 	"github.com/cyverse-de/queries"
 )
@@ -16,6 +19,23 @@ type BagRecord struct {
 	ID       string      `json:"id"`
 	Contents BagContents `json:"contents"`
 	UserID   string      `json:"user_id"`
+}
+
+// BagContents represents a bag's contents stored in the database.
+type BagContents map[string]interface{}
+
+// Value ensures that the BagContents type implements the driver.Valuer interface.
+func (b BagContents) Value() (driver.Value, error) {
+	return json.Marshal(b)
+}
+
+// Scan implements the sql.Scanner interface for *BagContents
+func (b *BagContents) Scan(value interface{}) error {
+	valueBytes, ok := value.([]byte) //make sure that value can be type asserted to a []byte.
+	if !ok {
+		return errors.New("failed to cast value to []byte")
+	}
+	return json.Unmarshal(valueBytes, &b)
 }
 
 // HasBags returns true if the user has bags and false otherwise.
