@@ -45,19 +45,6 @@ func (b *BagContents) Scan(value interface{}) error {
 	return json.Unmarshal(valueBytes, &b)
 }
 
-// GetUserID returns the user UUID for the provided username
-func (b *BagsAPI) GetUserID(username string) (string, error) {
-	var err error
-	query := `SELECT users.id
-				FROM users
-			   WHERE users.username = $1`
-	var userID string
-	if err = b.db.QueryRow(query, username).Scan(&userID); err != nil {
-		return "", fmt.Errorf("error getting user ID for %s: %w", username, err)
-	}
-	return userID, nil
-}
-
 // HasBags returns true if the user has bags and false otherwise.
 func (b *BagsAPI) HasBags(username string) (bool, error) {
 	query := `SELECT count(*)
@@ -178,7 +165,7 @@ func (b *BagsAPI) createDefaultBag(username string) (BagRecord, error) {
 		return record, fmt.Errorf("error setting the default bag for %s: %w", username, err)
 	}
 
-	if userID, err = b.GetUserID(username); err != nil {
+	if userID, err = queries.UserID(b.db, username); err != nil {
 		return record, fmt.Errorf("error getting the user id for %s: %w", username, err)
 	}
 
@@ -226,7 +213,7 @@ func (b *BagsAPI) SetDefaultBag(username, bagID string) error {
 		userID string
 	)
 
-	if userID, err = b.GetUserID(username); err != nil {
+	if userID, err = queries.UserID(b.db, username); err != nil {
 		return fmt.Errorf("error getting user ID for %s while setting default bag: %w", username, err)
 	}
 
