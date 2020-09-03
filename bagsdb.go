@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/cyverse-de/queries"
 )
@@ -74,13 +75,13 @@ func (b *BagsAPI) HasBags(username string) (bool, error) {
 // HasDefaultBag returns true if the user has a default bag.
 func (b *BagsAPI) HasDefaultBag(username string) (bool, error) {
 	query := `SELECT count(*)
-				FROM default_bags d
+				FROM default_bags d,
 					 users u
 			   WHERE d.user_id = u.id
 				 AND u.username = $1`
 	var count int64
 	if err := b.db.QueryRow(query, username).Scan(&count); err != nil {
-		return false, err
+		return false, fmt.Errorf("error checking if %s has a default bag: %w", username, err)
 	}
 	return count > 0, nil
 
@@ -164,21 +165,21 @@ func (b *BagsAPI) createDefaultBag(username string) (BagRecord, error) {
 	record.Contents = defaultContents
 
 	if newContents, err = json.Marshal(defaultContents); err != nil {
-		return record, err
+		return record, fmt.Errorf("error marshaling default bag: %w", err)
 	}
 
 	if newBagID, err = b.AddBag(username, string(newContents)); err != nil {
-		return record, err
+		return record, fmt.Errorf("error adding bag for user %s: %w", username, err)
 	}
 
 	record.ID = newBagID
 
 	if err = b.SetDefaultBag(username, newBagID); err != nil {
-		return record, err
+		return record, fmt.Errorf("error setting the default bag for %s: %w", username, err)
 	}
 
 	if userID, err = b.GetUserID(username); err != nil {
-		return record, err
+		return record, fmt.Errorf("error getting the user id for %s: %w", username, err)
 	}
 
 	record.UserID = userID
@@ -207,12 +208,12 @@ func (b *BagsAPI) GetDefaultBag(username string) (BagRecord, error) {
 					 b.contents,
 					 b.user_id
 				FROM bags b
-				JOIN default_bags d ON (b.id = d.bag_id)
-				JOIN users u ON (d.user_id = u.id)
+				JOIN default_bags d ON b.id = d.bag_id
+				JOIN users u ON d.user_id = u.id
 			   WHERE u.username = $1`
 
 	if err = b.db.QueryRow(query, username).Scan(&record.ID, &record.Contents, &record.UserID); err != nil {
-		return record, err
+		return record, fmt.Errorf("error getting default bag for %s from the database: %w", username, err)
 	}
 
 	return record, nil

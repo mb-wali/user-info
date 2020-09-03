@@ -95,6 +95,7 @@ func (b *BagsApp) GetBags(writer http.ResponseWriter, request *http.Request) {
 
 	if username, status, err = b.getUser(vars); err != nil {
 		http.Error(writer, err.Error(), status)
+		return
 	}
 
 	if bags, err = b.api.GetBags(username); err != nil {
