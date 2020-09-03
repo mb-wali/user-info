@@ -270,6 +270,20 @@ func (b *BagsAPI) UpdateBag(username, bagID, contents string) error {
 	return nil
 }
 
+// UpdateDefaultBag updates the default bag with new content.
+func (b *BagsAPI) UpdateDefaultBag(username, contents string) error {
+	var (
+		err        error
+		defaultBag BagRecord
+	)
+
+	if defaultBag, err = b.GetDefaultBag(username); err != nil {
+		return err
+	}
+
+	return b.UpdateBag(username, defaultBag.ID, contents)
+}
+
 // DeleteBag deletes the specified bag for the user.
 func (b *BagsAPI) DeleteBag(username, bagID string) error {
 	query := `DELETE FROM ONLY bags WHERE id = $1 and user_id = $2`
@@ -284,6 +298,22 @@ func (b *BagsAPI) DeleteBag(username, bagID string) error {
 	}
 
 	return nil
+}
+
+// DeleteDefaultBag deletes the default bag for the user. It will get
+// recreated with nothing in it the next time it is retrieved through
+// GetDefaultBag.
+func (b *BagsAPI) DeleteDefaultBag(username string) error {
+	var (
+		err        error
+		defaultBag BagRecord
+	)
+
+	if defaultBag, err = b.GetDefaultBag(username); err != nil {
+		return err
+	}
+
+	return b.DeleteBag(username, defaultBag.ID)
 }
 
 // DeleteAllBags deletes all of the bags for the specified user.

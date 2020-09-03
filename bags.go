@@ -31,6 +31,9 @@ func NewBagsApp(db *sql.DB, router *mux.Router, userDomain string) *BagsApp {
 	}
 	bagsApp.router.HandleFunc("/bags/", bagsApp.Greeting).Methods(http.MethodGet)
 	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.HasBags).Methods(http.MethodHead)
+	bagsApp.router.HandleFunc("/bags/{username}/default", bagsApp.GetDefaultBag).Methods(http.MethodGet)
+	bagsApp.router.HandleFunc("/bags/{username}/default", bagsApp.UpdateDefaultBag).Methods(http.MethodPost)
+	bagsApp.router.HandleFunc("/bags/{username}/default", bagsApp.DeleteDefaultBag).Methods(http.MethodDelete)
 	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.GetBags).Methods(http.MethodGet)
 	bagsApp.router.HandleFunc("/bags/{username}/{bagID}", bagsApp.GetBag).Methods(http.MethodGet)
 	bagsApp.router.HandleFunc("/bags/{username}", bagsApp.AddBag).Methods(http.MethodPut)
@@ -118,6 +121,7 @@ func (b *BagsApp) GetBag(writer http.ResponseWriter, request *http.Request) {
 		ok              bool
 		status          int
 		vars            = mux.Vars(request)
+		jsonBytes       []byte
 	)
 
 	if username, status, err = b.getUser(vars); err != nil {
@@ -144,8 +148,37 @@ func (b *BagsApp) GetBag(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	jsonBytes, err := json.Marshal(bag)
-	if err != nil {
+	if jsonBytes, err = json.Marshal(bag); err != nil {
+		http.Error(writer, fmt.Sprintf("error JSON encoding result for %s: %s", username, err), http.StatusInternalServerError)
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Write(jsonBytes)
+}
+
+// GetDefaultBag will return the default bag for the user, creating a new one and setting it as the default if no default is
+// already set.
+func (b *BagsApp) GetDefaultBag(writer http.ResponseWriter, request *http.Request) {
+	var (
+		username  string
+		bag       BagRecord
+		err       error
+		status    int
+		jsonBytes []byte
+		vars      = mux.Vars(request)
+	)
+
+	if username, status, err = b.getUser(vars); err != nil {
+		http.Error(writer, err.Error(), status)
+	}
+
+	if bag, err = b.api.GetDefaultBag(username); err != nil {
+		http.Error(writer, fmt.Sprintf("error getting default bag for %s: %s", username, err), http.StatusInternalServerError)
+		return
+	}
+
+	if jsonBytes, err = json.Marshal(bag); err != nil {
 		http.Error(writer, fmt.Sprintf("error JSON encoding result for %s: %s", username, err), http.StatusInternalServerError)
 		return
 	}
@@ -241,6 +274,37 @@ func (b *BagsApp) UpdateBag(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
+// UpdateDefaultBag sets new contents for the user's default bag.
+func (b *BagsApp) UpdateDefaultBag(writer http.ResponseWriter, request *http.Request) {
+	var (
+		username string
+		bag      BagRecord
+		err      error
+		body     []byte
+		status   int
+		vars     = mux.Vars(request)
+	)
+
+	if username, status, err = b.getUser(vars); err != nil {
+		http.Error(writer, err.Error(), status)
+	}
+
+	if body, err = ioutil.ReadAll(request.Body); err != nil {
+		errored(writer, fmt.Sprintf("error reading body: %s", err))
+		return
+	}
+
+	if err = json.Unmarshal(body, &bag); err != nil {
+		errored(writer, fmt.Sprintf("failed to JSON decode body: %s", err))
+		return
+	}
+
+	if err = b.api.UpdateDefaultBag(username, string(body)); err != nil {
+		errored(writer, fmt.Sprintf("error updating default bag for user %s: %s", username, err))
+		return
+	}
+}
+
 // DeleteBag deletes a single bag for a user.
 func (b *BagsApp) DeleteBag(writer http.ResponseWriter, request *http.Request) {
 	var (
@@ -264,6 +328,26 @@ func (b *BagsApp) DeleteBag(writer http.ResponseWriter, request *http.Request) {
 		errored(writer, fmt.Sprintf("error deleting bag for user %s: %s", username, err))
 		return
 	}
+}
+
+// DeleteDefaultBag deletes the default bag for the user from the database.
+func (b *BagsApp) DeleteDefaultBag(writer http.ResponseWriter, request *http.Request) {
+	var (
+		username string
+		err      error
+		status   int
+		vars     = mux.Vars(request)
+	)
+
+	if username, status, err = b.getUser(vars); err != nil {
+		http.Error(writer, err.Error(), status)
+	}
+
+	if err = b.api.DeleteDefaultBag(username); err != nil {
+		errored(writer, fmt.Sprintf("error deleting default bag for user %s: %s", username, err))
+		return
+	}
+
 }
 
 // DeleteAllBags deletes all bags for a user
