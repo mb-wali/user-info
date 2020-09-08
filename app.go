@@ -10,15 +10,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// App defines the interface for a user-info application
-type App interface {
-	Greeting(http.ResponseWriter, *http.Request)
-	GetRequest(http.ResponseWriter, *http.Request)
-	PutRequest(http.ResponseWriter, *http.Request)
-	PostRequest(http.ResponseWriter, *http.Request)
-	DeleteRequest(http.ResponseWriter, *http.Request)
-}
-
 func badRequest(writer http.ResponseWriter, msg string) {
 	http.Error(writer, msg, http.StatusBadRequest)
 	log.Error(msg)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/cyverse-de/queries"
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 )
 
 // BagsApp contains the routing and request handling code for bags.
@@ -110,7 +111,9 @@ func (b *BagsApp) GetBags(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
-	writer.Write(jsonBytes)
+	if _, err = writer.Write(jsonBytes); err != nil {
+		log.Error(err)
+	}
 }
 
 // GetBag returns a single bag.
@@ -155,7 +158,9 @@ func (b *BagsApp) GetBag(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
-	writer.Write(jsonBytes)
+	if _, err = writer.Write(jsonBytes); err != nil {
+		log.Error(err)
+	}
 }
 
 // GetDefaultBag will return the default bag for the user, creating a new one and setting it as the default if no default is
@@ -185,7 +190,9 @@ func (b *BagsApp) GetDefaultBag(writer http.ResponseWriter, request *http.Reques
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
-	writer.Write(jsonBytes)
+	if _, err = writer.Write(jsonBytes); err != nil {
+		log.Error(err)
+	}
 }
 
 // AddBag adds an additional bag to the list for the user.
@@ -225,7 +232,9 @@ func (b *BagsApp) AddBag(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
-	writer.Write(retval)
+	if _, err = writer.Write(retval); err != nil {
+		log.Error(err)
+	}
 }
 
 // UpdateBag updates the indicated bag.

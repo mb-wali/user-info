@@ -22,12 +22,6 @@ type BagRecord struct {
 	UserID   string      `json:"user_id"`
 }
 
-// DefaultBag represents the default bag for a user.
-type DefaultBag struct {
-	UserID string `json:"user_id"`
-	BagID  string `json:"bag_id"`
-}
-
 // BagContents represents a bag's contents stored in the database.
 type BagContents map[string]interface{}
 
