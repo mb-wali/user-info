@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/cyverse-de/queries"
 )
@@ -47,9 +48,24 @@ func (b *BagsAPI) HasBags(username string) (bool, error) {
 				 AND u.username = $1`
 	var count int64
 	if err := b.db.QueryRow(query, username).Scan(&count); err != nil {
-		return false, err
+		return false, fmt.Errorf("error checking if %s has any bags: %w", username, err)
 	}
 	return count > 0, nil
+}
+
+// HasDefaultBag returns true if the user has a default bag.
+func (b *BagsAPI) HasDefaultBag(username string) (bool, error) {
+	query := `SELECT count(*)
+				FROM default_bags d,
+					 users u
+			   WHERE d.user_id = u.id
+				 AND u.username = $1`
+	var count int64
+	if err := b.db.QueryRow(query, username).Scan(&count); err != nil {
+		return false, fmt.Errorf("error checking if %s has a default bag: %w", username, err)
+	}
+	return count > 0, nil
+
 }
 
 // HasBag returns true if the specified bag exists in the database.
@@ -62,7 +78,7 @@ func (b *BagsAPI) HasBag(username, bagID string) (bool, error) {
 				 AND b.id = $2`
 	var count int64
 	if err := b.db.QueryRow(query, username, bagID).Scan(&count); err != nil {
-		return false, err
+		return false, fmt.Errorf("error checking for bag %s for %s: %w", bagID, username, err)
 	}
 	return count > 0, nil
 }
@@ -79,7 +95,7 @@ func (b *BagsAPI) GetBags(username string) ([]BagRecord, error) {
 
 	rows, err := b.db.Query(query, username)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting all bags for %s: %w", username, err)
 	}
 
 	bagList := []BagRecord{}
@@ -87,13 +103,13 @@ func (b *BagsAPI) GetBags(username string) ([]BagRecord, error) {
 		record := BagRecord{}
 		err = rows.Scan(&record.ID, &record.Contents, &record.UserID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error scanning record while getting bags for %s: %w", username, err)
 		}
 
 		bagList = append(bagList, record)
 	}
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error from rows object while getting bags for %s: %w", username, err)
 	}
 	return bagList, nil
 }
@@ -112,9 +128,94 @@ func (b *BagsAPI) GetBag(username, bagID string) (BagRecord, error) {
 	var record BagRecord
 	err := b.db.QueryRow(query, bagID, username).Scan(&record.ID, &record.Contents, &record.UserID)
 	if err != nil {
-		return record, err
+		return record, fmt.Errorf("error getting bag id %s for %s: %w", bagID, username, err)
 	}
 	return record, nil
+
+}
+
+func (b *BagsAPI) createDefaultBag(username string) (BagRecord, error) {
+	var (
+		err         error
+		record      BagRecord
+		newBagID    string
+		newContents []byte
+		userID      string
+	)
+	defaultContents := map[string]interface{}{}
+	record.Contents = defaultContents
+
+	if newContents, err = json.Marshal(defaultContents); err != nil {
+		return record, fmt.Errorf("error marshaling default bag: %w", err)
+	}
+
+	if newBagID, err = b.AddBag(username, string(newContents)); err != nil {
+		return record, fmt.Errorf("error adding bag for user %s: %w", username, err)
+	}
+
+	record.ID = newBagID
+
+	if err = b.SetDefaultBag(username, newBagID); err != nil {
+		return record, fmt.Errorf("error setting the default bag for %s: %w", username, err)
+	}
+
+	if userID, err = queries.UserID(b.db, username); err != nil {
+		return record, fmt.Errorf("error getting the user id for %s: %w", username, err)
+	}
+
+	record.UserID = userID
+
+	return record, err
+}
+
+// GetDefaultBag returns the specified bag for the indicated user.
+func (b *BagsAPI) GetDefaultBag(username string) (BagRecord, error) {
+	var (
+		err        error
+		hasDefault bool
+		record     BagRecord
+	)
+
+	// if the user doesn't have a default bag, add bag and set it as the default, then return it.
+	if hasDefault, err = b.HasDefaultBag(username); err != nil {
+		return record, fmt.Errorf("error from HasDefaultBag in GetDefaultBag for %s: %w", username, err)
+	}
+
+	if !hasDefault {
+		return b.createDefaultBag(username)
+	}
+
+	query := `SELECT b.id,
+					 b.contents,
+					 b.user_id
+				FROM bags b
+				JOIN default_bags d ON b.id = d.bag_id
+				JOIN users u ON d.user_id = u.id
+			   WHERE u.username = $1`
+
+	if err = b.db.QueryRow(query, username).Scan(&record.ID, &record.Contents, &record.UserID); err != nil {
+		return record, fmt.Errorf("error getting default bag for %s from the database: %w", username, err)
+	}
+
+	return record, nil
+}
+
+// SetDefaultBag allows the user to update their default bag.
+func (b *BagsAPI) SetDefaultBag(username, bagID string) error {
+	var (
+		err    error
+		userID string
+	)
+
+	if userID, err = queries.UserID(b.db, username); err != nil {
+		return fmt.Errorf("error getting user ID for %s while setting default bag: %w", username, err)
+	}
+
+	query := `INSERT INTO default_bags VALUES ( $1, $2 ) ON CONFLICT (user_id) DO UPDATE SET bag_id = $2`
+	if _, err = b.db.Exec(query, userID, bagID); err != nil {
+		return fmt.Errorf("error setting the default bag for %s: %w", username, err)
+	}
+	return nil
 
 }
 
@@ -124,12 +225,12 @@ func (b *BagsAPI) AddBag(username, contents string) (string, error) {
 
 	userID, err := queries.UserID(b.db, username)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error from queries.UserID in AddBag for %s: %w", username, err)
 	}
 
 	var bagID string
 	if err = b.db.QueryRow(query, contents, userID).Scan(&bagID); err != nil {
-		return "", err
+		return "", fmt.Errorf("error adding bag for %s: %w", username, err)
 	}
 
 	return bagID, nil
@@ -141,14 +242,28 @@ func (b *BagsAPI) UpdateBag(username, bagID, contents string) error {
 
 	userID, err := queries.UserID(b.db, username)
 	if err != nil {
-		return err
+		return fmt.Errorf("error from queries.UserID in UpdateBag for %s: %w", username, err)
 	}
 
 	if _, err = b.db.Exec(query, contents, bagID, userID); err != nil {
-		return err
+		return fmt.Errorf("error updating bag %s for %s: %w", bagID, username, err)
 	}
 
 	return nil
+}
+
+// UpdateDefaultBag updates the default bag with new content.
+func (b *BagsAPI) UpdateDefaultBag(username, contents string) error {
+	var (
+		err        error
+		defaultBag BagRecord
+	)
+
+	if defaultBag, err = b.GetDefaultBag(username); err != nil {
+		return fmt.Errorf("error updating default bag for %s: %w", username, err)
+	}
+
+	return b.UpdateBag(username, defaultBag.ID, contents)
 }
 
 // DeleteBag deletes the specified bag for the user.
@@ -157,14 +272,30 @@ func (b *BagsAPI) DeleteBag(username, bagID string) error {
 
 	userID, err := queries.UserID(b.db, username)
 	if err != nil {
-		return err
+		return fmt.Errorf("error from queries.UserID in DeleteBag for %s: %w", username, err)
 	}
 
 	if _, err = b.db.Exec(query, bagID, userID); err != nil {
-		return err
+		return fmt.Errorf("error deleting bag %s for %s: %w", bagID, username, err)
 	}
 
 	return nil
+}
+
+// DeleteDefaultBag deletes the default bag for the user. It will get
+// recreated with nothing in it the next time it is retrieved through
+// GetDefaultBag.
+func (b *BagsAPI) DeleteDefaultBag(username string) error {
+	var (
+		err        error
+		defaultBag BagRecord
+	)
+
+	if defaultBag, err = b.GetDefaultBag(username); err != nil {
+		return fmt.Errorf("error deleting default bag for %s: %w", username, err)
+	}
+
+	return b.DeleteBag(username, defaultBag.ID)
 }
 
 // DeleteAllBags deletes all of the bags for the specified user.
@@ -173,11 +304,11 @@ func (b *BagsAPI) DeleteAllBags(username string) error {
 
 	userID, err := queries.UserID(b.db, username)
 	if err != nil {
-		return err
+		return fmt.Errorf("error from queries.UserID for %s: %w", username, err)
 	}
 
 	if _, err = b.db.Exec(query, userID); err != nil {
-		return err
+		return fmt.Errorf("error deleting all bags for %s: %w", username, err)
 	}
 
 	return nil
