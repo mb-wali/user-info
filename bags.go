@@ -287,12 +287,13 @@ func (b *BagsApp) UpdateBag(writer http.ResponseWriter, request *http.Request) {
 // UpdateDefaultBag sets new contents for the user's default bag.
 func (b *BagsApp) UpdateDefaultBag(writer http.ResponseWriter, request *http.Request) {
 	var (
-		username string
-		bag      BagRecord
-		err      error
-		body     []byte
-		status   int
-		vars     = mux.Vars(request)
+		username    string
+		bag, newBag BagRecord
+		err         error
+		body        []byte
+		status      int
+		vars        = mux.Vars(request)
+		retval      []byte
 	)
 
 	if username, status, err = b.getUser(vars); err != nil {
@@ -312,6 +313,21 @@ func (b *BagsApp) UpdateDefaultBag(writer http.ResponseWriter, request *http.Req
 	if err = b.api.UpdateDefaultBag(username, string(body)); err != nil {
 		errored(writer, fmt.Sprintf("error updating default bag for user %s: %s", username, err))
 		return
+	}
+
+	if newBag, err = b.api.GetDefaultBag(username); err != nil {
+		errored(writer, fmt.Sprintf("error getting new bag value for user %s: %s", username, err))
+		return
+	}
+
+	if retval, err = json.Marshal(newBag); err != nil {
+		errored(writer, fmt.Sprintf("error serializing new bag value for user %s: %s", username, err))
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	if _, err = writer.Write(retval); err != nil {
+		log.Error(err)
 	}
 }
 
@@ -347,6 +363,8 @@ func (b *BagsApp) DeleteDefaultBag(writer http.ResponseWriter, request *http.Req
 		err      error
 		status   int
 		vars     = mux.Vars(request)
+		newBag   BagRecord
+		retval   []byte
 	)
 
 	if username, status, err = b.getUser(vars); err != nil {
@@ -356,6 +374,21 @@ func (b *BagsApp) DeleteDefaultBag(writer http.ResponseWriter, request *http.Req
 	if err = b.api.DeleteDefaultBag(username); err != nil {
 		errored(writer, fmt.Sprintf("error deleting default bag for user %s: %s", username, err))
 		return
+	}
+
+	if newBag, err = b.api.GetDefaultBag(username); err != nil {
+		errored(writer, fmt.Sprintf("error getting new bag value for user %s: %s", username, err))
+		return
+	}
+
+	if retval, err = json.Marshal(newBag); err != nil {
+		errored(writer, fmt.Sprintf("error serializing new bag value for user %s: %s", username, err))
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	if _, err = writer.Write(retval); err != nil {
+		log.Error(err)
 	}
 
 }
