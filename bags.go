@@ -48,7 +48,7 @@ func NewBagsApp(db *sql.DB, router *mux.Router, userDomain string) *BagsApp {
 // username if it's not already there.
 func (b *BagsApp) AddUsernameSuffix(username string) string {
 	var retval string
-	if !strings.HasSuffix(username, IplantSuffix) {
+	if !strings.Contains(username, "@") {
 		retval = fmt.Sprintf("%s%s", username, IplantSuffix)
 	} else {
 		retval = username
