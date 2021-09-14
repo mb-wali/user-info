@@ -40,8 +40,6 @@ func handleNonUser(writer http.ResponseWriter, username string) {
 	}
 
 	notFound(writer, string(retval))
-
-	return
 }
 
 func fixAddr(addr string) string {

@@ -98,7 +98,7 @@ func (u *UserSessionsApp) GetRequest(writer http.ResponseWriter, r *http.Request
 		errored(writer, err.Error())
 	}
 
-	writer.Write(jsoned)
+	writer.Write(jsoned) // nolint:errcheck
 }
 
 // PutRequest handles creating a new user session.
@@ -168,7 +168,7 @@ func (u *UserSessionsApp) PostRequest(writer http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	writer.Write(jsoned)
+	writer.Write(jsoned) // nolint:errcheck
 }
 
 // DeleteRequest handles deleting a user session.

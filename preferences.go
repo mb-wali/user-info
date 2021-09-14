@@ -137,7 +137,7 @@ func (u *UserPreferencesApp) GetRequest(writer http.ResponseWriter, r *http.Requ
 		errored(writer, err.Error())
 	}
 
-	writer.Write(jsoned)
+	writer.Write(jsoned) // nolint:errcheck
 }
 
 // PutRequest handles creating new user preferences.
@@ -207,7 +207,7 @@ func (u *UserPreferencesApp) PostRequest(writer http.ResponseWriter, r *http.Req
 		return
 	}
 
-	writer.Write(jsoned)
+	writer.Write(jsoned) // nolint:errcheck
 }
 
 // DeleteRequest handles deleting a user's preferences.

@@ -146,7 +146,7 @@ func (s *SavedSearchesApp) PostRequest(writer http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	writer.Write(jsoned)
+	writer.Write(jsoned) // nolint:errcheck
 }
 
 // DeleteRequest handles deleting a user's saved searches.
