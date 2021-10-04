@@ -20,7 +20,7 @@ func main() {
 	var (
 		showVersion = flag.Bool("version", false, "Print the version information")
 		cfgPath     = flag.String("config", "/etc/iplant/de/jobservices.yml", "The path to the config file")
-		port        = flag.String("port", "60000", "The port number to listen on")
+		port        = flag.String("port", "60001", "The port number to listen on")
 		err         error
 		cfg         *viper.Viper
 	)
@@ -46,7 +46,7 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	log.Info("Connecting to the database...")
+	log.Info("Connecting to the database...", dburi)
 	db, err := connector.Connect("postgres", dburi)
 	if err != nil {
 		log.Fatal(err.Error())
