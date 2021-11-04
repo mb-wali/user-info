@@ -6,7 +6,7 @@ RUN go get -u github.com/jstemmer/go-junit-report
 COPY . /go/src/github.com/cyverse-de/user-info
 
 # copy config file 
-COPY jobservices.yml /etc/iplant/de/jobservices.yml
+# COPY jobservices.yml /etc/iplant/de/jobservices.yml
 
 ENV CGO_ENABLED=0
 RUN go install -v github.com/cyverse-de/user-info
